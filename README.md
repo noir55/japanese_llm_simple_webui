@@ -1,0 +1,2 @@
+# japanese_llm_simple_webui
+Rinnna-3.6B、OpenCALM等の日本語LLM用の簡易Webインタフェースです
