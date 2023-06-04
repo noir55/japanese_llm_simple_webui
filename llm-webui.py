@@ -425,4 +425,4 @@ with gr.Blocks(css=css) as demo:
     clear.click(lambda: None, None, [chatbot], queue=False)
 
 demo.queue(max_size=32, concurrency_count=2)
-demo.launch(server_name=GRADIO_HOST, server_port=GRADIO_PORT)
+demo.launch(server_name=GRADIO_HOST, server_port=GRADIO_PORT, share=False)
