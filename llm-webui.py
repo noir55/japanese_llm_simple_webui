@@ -21,8 +21,6 @@ VERSION = "1.0.0"
 
 # ページの最上部に表示させたいタイトルを設定
 TITLE_STRINGS = "Rinna 3.6B Instruction PPO Chat"
-# チャット部分のユーザ発言の背景色の設定
-USER_COLOR = "#894444"
 
 # モデルタイプ("rinna","opencalm","llama")
 MODEL_TYPE = "rinna"
@@ -141,17 +139,16 @@ def chat(curr_system_message, history):
         messages = prompt(curr_system_message, history)
         # プロンプトをトークナイザで変換する
         if MODEL_TYPE == "rinna":
-            model_inputs = tok.encode(messages, return_tensors="pt", add_special_tokens=False, padding=True)
+            model_inputs = tok([messages], return_tensors="pt", add_special_tokens=False, padding=True)
         elif MODEL_TYPE == "opencalm":
             model_inputs = tok([messages], return_tensors="pt")
         elif MODEL_TYPE == "llama":
             model_inputs = tok([messages], return_tensors="pt")
-            model_inputs = model_inputs['input_ids']
         # もしプロンプトのトークン数が多すぎる場合は削除フラグを設定
-        if del_flag == 0 and len(model_inputs[0]) > PROMPT_THRESHOLD:
+        if del_flag == 0 and len(model_inputs['input_ids'][0]) > PROMPT_THRESHOLD:
             del_flag = 1
         # 削除フラグが設定され、かつPROMPT_DELETEDよりトークン数が多い場合は履歴の先頭を削除
-        if del_flag == 1 and len(model_inputs[0]) > PROMPT_DELETED:
+        if del_flag == 1 and len(model_inputs['input_ids'][0]) > PROMPT_DELETED:
             history.pop(0)
         # 削除フラグが設定されてないか、設定されているがPROMPT_DELETEDよりトークン数が少ない場合ループを抜ける
         else:
@@ -159,7 +156,8 @@ def chat(curr_system_message, history):
 
     # プロンプトを標準出力に表示
     if DEBUG_FLAG:
-        print(f"----\n{messages}\n----\n")
+        print(f"--prompt strings--\n{messages}\n----\n")
+        print(f"--prompt tokens--\n{model_inputs}\n----\n")
 
     # 入力トークンをGPUに送る
     model_inputs = model_inputs.to("cuda")
@@ -168,58 +166,23 @@ def chat(curr_system_message, history):
     streamer = TextIteratorStreamer(
         tok, timeout=10., skip_prompt=True, skip_special_tokens=True)
 
-    # Rinna-3.6Bの推論設定
-    if MODEL_TYPE == "rinna":
-        generate_kwargs = dict(
-            streamer=streamer,
-            max_new_tokens=MAX_NEW_TOKENS,
-            do_sample=True,
-            #top_p=0.95,
-            #top_k=40,
-            temperature=TEMPERATURE,
-            num_beams=1,
-            repetition_penalty=1.1,
-            pad_token_id=tok.pad_token_id,
-            bos_token_id=tok.bos_token_id,
-            eos_token_id=tok.eos_token_id,
-            stopping_criteria=StoppingCriteriaList([stop])
-        )
-        t = Thread(target=m.generate, args=[model_inputs], kwargs=generate_kwargs)
-    # OpenCALMの推論設定
-    elif MODEL_TYPE == "opencalm":
-        generate_kwargs = dict(
-            model_inputs,
-            streamer=streamer,
-            max_new_tokens=MAX_NEW_TOKENS,
-            do_sample=True,
-            #top_p=0.95,
-            #top_k=40,
-            temperature=TEMPERATURE,
-            num_beams=1,
-            repetition_penalty=1.1,
-            pad_token_id=tok.pad_token_id,
-            bos_token_id=tok.bos_token_id,
-            eos_token_id=tok.eos_token_id,
-            stopping_criteria=StoppingCriteriaList([stop])
-        )
-        t = Thread(target=m.generate, kwargs=generate_kwargs)
-    # Llama系モデルの推論設定
-    elif MODEL_TYPE == "llama":
-        generate_kwargs = dict(
-            streamer=streamer,
-            max_new_tokens=MAX_NEW_TOKENS,
-            do_sample=True,
-            #top_p=0.95,
-            #top_k=40,
-            temperature=TEMPERATURE,
-            num_beams=1,
-            repetition_penalty=1.1,
-            pad_token_id=tok.pad_token_id,
-            bos_token_id=tok.bos_token_id,
-            eos_token_id=tok.eos_token_id,
-            stopping_criteria=StoppingCriteriaList([stop])
-        )
-        t = Thread(target=m.generate, args=[model_inputs], kwargs=generate_kwargs)
+    # 推論設定
+    generate_kwargs = dict(
+        model_inputs,
+        streamer=streamer,
+        max_new_tokens=MAX_NEW_TOKENS,
+        do_sample=True,
+        #top_p=0.95,
+        #top_k=40,
+        temperature=TEMPERATURE,
+        num_beams=1,
+        repetition_penalty=1.1,
+        pad_token_id=tok.pad_token_id,
+        bos_token_id=tok.bos_token_id,
+        eos_token_id=tok.eos_token_id,
+        stopping_criteria=StoppingCriteriaList([stop])
+    )
+    t = Thread(target=m.generate, kwargs=generate_kwargs)
 
     # スレッドで生成を実行
     t.start()
@@ -255,7 +218,6 @@ parser.add_argument("--temperature", type=float, default=TEMPERATURE, help="生�
 parser.add_argument("--host", type=str, default=GRADIO_HOST, help="WebサーバがバインドするIPアドレスorホスト名")
 parser.add_argument("--port", type=int, default=GRADIO_PORT, help="Webサーバがバインドするポート番号")
 parser.add_argument("--title", type=str, default=TITLE_STRINGS, help="Webページのタイトル")
-parser.add_argument("--user-color", type=str, default=USER_COLOR, help="ユーザ発言の背景色")
 parser.add_argument("--debug", type=str, choices=["on", "off"], default=DEBUG_FLAG, help="デバッグメッセージを標準出力に表示")
 args = parser.parse_args()
 
@@ -273,7 +235,6 @@ TEMPERATURE = args.temperature
 GRADIO_HOST = args.host
 GRADIO_PORT = args.port
 TITLE_STRINGS = args.title
-USER_COLOR = args.user_color
 DEBUG_FLAG = args.debug
 
 # パラメータ表示
@@ -294,7 +255,6 @@ print(f"Temperature: {TEMPERATURE}")
 print(f"WebサーバIPorホスト名: {GRADIO_HOST}")
 print(f"Webサーバポート番号: {GRADIO_PORT}")
 print(f"Webページタイトル: {TITLE_STRINGS}")
-print(f"ユーザ発言の背景色: {USER_COLOR}")
 print(f"デバッグ: {DEBUG_FLAG}\n")
 
 # LOAD_IN_8BITはTrue or Falseに変換
@@ -386,15 +346,9 @@ if LORA_WEIGHTS != "":
 # プロンプトの先頭に付加する文字列
 start_message = ""
 
-# チャット部分のユーザ発言の背景色をCSSで設定
-css = """
-.message.user{
-    background:""" + USER_COLOR + """ !important;
-}
-"""
 
 # Webページ
-with gr.Blocks(css=css) as demo:
+with gr.Blocks(title="LLM Simple WebUI", theme=gr.themes.Base()) as demo:
     # history = gr.State([])
     gr.Markdown(f"## {TITLE_STRINGS}")
     chatbot = gr.Chatbot().style(height=500)
