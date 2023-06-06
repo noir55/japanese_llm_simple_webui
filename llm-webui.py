@@ -332,10 +332,7 @@ else:
     exit()
 
 # ジェネレータの作成
-if LOAD_IN_8BIT:
-    generator = pipeline('text-generation', model=m, tokenizer=tok)
-else:
-    generator = pipeline('text-generation', model=m, tokenizer=tok, device=0)
+generator = pipeline('text-generation', model=m, tokenizer=tok)
 
 # LoRAのロード
 if LORA_WEIGHTS != "":
@@ -349,7 +346,7 @@ start_message = ""
 
 # Webページ
 with gr.Blocks(title="LLM Simple WebUI", theme=gr.themes.Base()) as demo:
-    # history = gr.State([])
+    history = gr.State([])
     gr.Markdown(f"## {TITLE_STRINGS}")
     chatbot = gr.Chatbot().style(height=500)
     with gr.Row():
