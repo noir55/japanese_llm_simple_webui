@@ -7,6 +7,7 @@ import time
 import numpy as np
 from torch.nn import functional as F
 import os
+import re
 from threading import Thread
 from peft import PeftModel
 from transformers import pipeline, StoppingCriteria, StoppingCriteriaList, TextIteratorStreamer
@@ -69,6 +70,15 @@ class StopOnTokens(StoppingCriteria):
 
 
 def user(message, history):
+    # Rinnaモデルの場合"<NL>"を改行に変換
+    if MODEL_TYPE == "rinna":
+        for item in history:
+            item[0] = re.sub("<NL>", "\n", item[0])
+            item[1] = re.sub("<NL>", "\n", item[1])
+    # <br>が増殖するのを防止
+    for item in history:
+        item[0] = re.sub("<br>\n", "\n", item[0])
+        item[1] = re.sub("<br>\n", "\n", item[1])
     # Append the user's message to the conversation history
     return "", history + [[message, ""]]
 
@@ -78,6 +88,15 @@ def regen(history):
         return "", [["", ""]]
     else:
         history[-1][1]=""
+        # Rinnaモデルの場合"<NL>"を改行に変換
+        if MODEL_TYPE == "rinna":
+            for item in history:
+                item[0] = re.sub("<NL>", "\n", item[0])
+                item[1] = re.sub("<NL>", "\n", item[1])
+        # <br>が増殖するのを防止
+        for item in history:
+            item[0] = re.sub("<br>\n", "\n", item[0])
+            item[1] = re.sub("<br>\n", "\n", item[1])
         return history[-1][0], history
 
 # Remove lastボタンクリック時の動作
@@ -86,6 +105,10 @@ def remove_last(history):
         return "", [["", ""]]
     else:
         history.pop(-1)
+        # <br>が増殖するのを防止
+        for item in history:
+            item[0] = re.sub("<br>\n", "\n", item[0])
+            item[1] = re.sub("<br>\n", "\n", item[1])
         return history
 
 # プロンプト文字列を生成する関数
@@ -128,6 +151,11 @@ def chat(curr_system_message, history):
     # Initialize a StopOnTokens object
     stop = StopOnTokens()
 
+    # "<br>"を削除しておく(モデルに付加された<br>タグが渡らないようにする)
+    for item in history:
+        item[0] = re.sub("<br>\n", "\n", item[0])
+        item[1] = re.sub("<br>\n", "\n", item[1])
+
     # 会話履歴を表示
     if DEBUG_FLAG:
         print(f"history={history}\n")
@@ -139,6 +167,7 @@ def chat(curr_system_message, history):
         messages = prompt(curr_system_message, history)
         # プロンプトをトークナイザで変換する
         if MODEL_TYPE == "rinna":
+            messages = re.sub("\n", "<NL>", messages)
             model_inputs = tok([messages], return_tensors="pt", add_special_tokens=False, padding=True)
         elif MODEL_TYPE == "opencalm":
             model_inputs = tok([messages], return_tensors="pt")
@@ -164,7 +193,7 @@ def chat(curr_system_message, history):
 
     # モデルに入力して回答を生成(ストリーミング出力させる)
     streamer = TextIteratorStreamer(
-        tok, timeout=10., skip_prompt=True, skip_special_tokens=True)
+        tok, timeout=60., skip_prompt=True, skip_special_tokens=True)
 
     # 推論設定
     generate_kwargs = dict(
@@ -191,6 +220,9 @@ def chat(curr_system_message, history):
     # Initialize an empty string to store the generated text
     partial_text = ""
     for new_text in streamer:
+        # Rinnaモデルの場合"<NL>"を改行に変換
+        if MODEL_TYPE == "rinna":
+            new_text = re.sub("<NL>", "\n", new_text)
         # print(new_text)
         partial_text += new_text
         history[-1][1] = partial_text
@@ -331,8 +363,8 @@ else:
     print(f"Invalid MODEL_TYPE \"{MODEL_TYPE}\"")
     exit()
 
-# ジェネレータの作成
-generator = pipeline('text-generation', model=m, tokenizer=tok)
+# ジェネレータの作成 (不要だと思われるためコメントアウト)
+#generator = pipeline('text-generation', model=m, tokenizer=tok)
 
 # LoRAのロード
 if LORA_WEIGHTS != "":
