@@ -23,7 +23,7 @@ VERSION = "1.0.0"
 # ページの最上部に表示させたいタイトルを設定
 TITLE_STRINGS = "Rinna 3.6B Instruction PPO Chat"
 
-# モデルタイプ("rinna","opencalm","llama")
+# モデルタイプ("rinna","opencalm","llama","stablelm","bloom","falcon","mpt")
 MODEL_TYPE = "rinna"
 # ベースモデルを設定
 BASE_MODEL = "rinna/japanese-gpt-neox-3.6b-instruction-ppo"
@@ -35,7 +35,7 @@ LOAD_IN_8BIT = "off"
 # LoRAのディレクトリ(空文字列に設定すると読み込まない)
 LORA_WEIGHTS = ""
 
-# プロンプトタイプ("rinna","vicuna","alpaca","none")
+# プロンプトタイプ("rinna","vicuna","alpaca","stablelm","redpajama","falcon","none")
 PROMPT_TYPE = "rinna"
 # プロンプトが何トークンを超えたら履歴を削除するか
 PROMPT_THRESHOLD = 1024
@@ -62,12 +62,23 @@ DEBUG_FLAG = "on"
 
 class StopOnTokens(StoppingCriteria):
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
-        stop_ids = [50278, 50279, 50277, 1, 0]
+        # モデルからこのトークンIDが出力されたら生成をストップする
+        if MODEL_TYPE == "stablelm":
+            # 50278="<|USER|>"、50279="<|ASSISTANT|>"、50277="<|SYSTEM|>"、1="<|padding|>"、0="<|endoftext|>"
+            stop_ids = [50278, 50279, 50277, 1, 0]
+        elif MODEL_TYPE == "mpt":
+            # 1="<|padding|>"、0="<|endoftext|>" (改行が出力されたらストップしたい場合は「187」も追加する)
+            stop_ids = [1, 0]
+        elif MODEL_TYPE == "falcon":
+            # 193="\n"、11="<|endoftext|>" (改行が出力されたらストップしたい場合は「193」も追加する)
+            stop_ids = [11]
+        else:
+            # ほとんどのトークナイザーは 1="<|padding|>"、0="<|endoftext|>"
+            stop_ids = [1, 0]
         for stop_id in stop_ids:
             if input_ids[0][-1] == stop_id:
                 return True
         return False
-
 
 def user(message, history):
     # Rinnaモデルの場合"<NL>"を改行に変換
@@ -133,6 +144,23 @@ def prompt(curr_system_message, history):
             f"{new_line}{new_line}".join([new_line.join([f"### Instruction:{new_line}"+item[0], f"{new_line}### Response:{new_line}"+item[1]])
                     for item in history])
         messages = prefix + messages
+    # StableLM形式のプロンプト生成
+    elif PROMPT_TYPE == "stablelm":
+        prefix = f"""<|SYSTEM|># StableLM Tuned (Alpha version){new_line}- StableLM is a helpful and harmless open-source AI language model developed by StabilityAI.{new_line}- StableLM is excited to be able to help the user, but will refuse to do anything that could be considered harmful to the user.{new_line}- StableLM is more than just an information source, StableLM is also able to write poetry, short stories, and make jokes.{new_line}- StableLM will refuse to participate in anything that could harm a human.{new_line}"""
+        messages = curr_system_message + \
+            "".join(["".join([f"<|USER|>"+item[0], f"<|ASSISTANT|>"+item[1]])
+                    for item in history])
+        messages = prefix + messages
+    # Radpajama形式のプロンプト生成
+    elif PROMPT_TYPE == "redpajama":
+        messages = curr_system_message + \
+            new_line.join([new_line.join(["<human>: "+item[0], "<bot>: "+item[1]])
+                    for item in history])
+    # Falcon形式のプロンプト生成
+    elif PROMPT_TYPE == "falcon":
+        messages = curr_system_message + \
+            new_line.join([new_line.join(["User: "+item[0], "Asisstant:"+item[1]])
+                    for item in history])
     # 特定の書式を使用しない(入力した文章の続きを生成する)場合のプロンプト生成
     elif PROMPT_TYPE == "none":
         messages = curr_system_message + \
@@ -172,6 +200,15 @@ def chat(curr_system_message, history):
         elif MODEL_TYPE == "opencalm":
             model_inputs = tok([messages], return_tensors="pt")
         elif MODEL_TYPE == "llama":
+            model_inputs = tok([messages], return_tensors="pt")
+        elif MODEL_TYPE == "stablelm":
+            model_inputs = tok([messages], return_tensors="pt")
+        elif MODEL_TYPE == "bloom":
+            model_inputs = tok([messages], return_tensors="pt")
+        elif MODEL_TYPE == "falcon":
+            model_inputs = tok([messages], return_tensors="pt")
+            model_inputs.pop('token_type_ids')
+        elif MODEL_TYPE == "mpt":
             model_inputs = tok([messages], return_tensors="pt")
         # もしプロンプトのトークン数が多すぎる場合は削除フラグを設定
         if del_flag == 0 and len(model_inputs['input_ids'][0]) > PROMPT_THRESHOLD:
@@ -223,11 +260,13 @@ def chat(curr_system_message, history):
         # Rinnaモデルの場合"<NL>"を改行に変換
         if MODEL_TYPE == "rinna":
             new_text = re.sub("<NL>", "\n", new_text)
-        # print(new_text)
+        #print(new_text)
         partial_text += new_text
         history[-1][1] = partial_text
         # Yield an empty string to cleanup the message textbox and the updated conversation history
         yield history
+    if DEBUG_FLAG:
+        print(f"--generated strings--\n{partial_text}\n----\n")
     return partial_text
 
 
@@ -238,11 +277,11 @@ def chat(curr_system_message, history):
 # 引数を取得
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default=BASE_MODEL, help="モデル名またはディレクトリのパス")
-parser.add_argument("--model-type", type=str, choices=["rinna", "opencalm", "llama"],  default=MODEL_TYPE, help="モデルタイプ名")
+parser.add_argument("--model-type", type=str, choices=["rinna", "opencalm", "llama", "stablelm", "bloom", "falcon", "mpt"],  default=MODEL_TYPE, help="モデルタイプ名")
 parser.add_argument("--tokenizer", type=str, default=TOKENIZER_MODEL, help="トークナイザー名またはディレクトリのパス")
 parser.add_argument("--load-in-8bit", type=str, choices=["on", "off"], default=LOAD_IN_8BIT, help="モデル名またはディレクトリのパス")
 parser.add_argument("--lora", type=str, default=LORA_WEIGHTS, help="LoRAディレクトリのパス")
-parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
+parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "stablelm", "redpajama", "falcon", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
 parser.add_argument("--prompt-threshold", type=int, default=PROMPT_THRESHOLD, help="このトークン数を超えたら古い履歴を削除")
 parser.add_argument("--prompt-deleted", type=int, default=PROMPT_DELETED, help="古い履歴削除時にこのトークン以下にする")
 parser.add_argument("--max-new-tokens", type=int, default=MAX_NEW_TOKENS, help="推論時に生成するトークン数の最大")
@@ -358,6 +397,80 @@ elif MODEL_TYPE == "llama":
     print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
     tok = LlamaTokenizer.from_pretrained(TOKENIZER_MODEL)
     print(f"Sucessfully loaded the tokenizer to the memory")
+# StableLMモデルの場合
+elif MODEL_TYPE == "stablelm":
+    from transformers import AutoModelForCausalLM, GPTNeoXTokenizerFast
+    # 改行を示す文字の設定
+    new_line = "\n"
+    # モデルのロード
+    print(f"Starting to load the model \"{BASE_MODEL}\" to memory")
+    m = AutoModelForCausalLM.from_pretrained(
+        BASE_MODEL,
+        torch_dtype=torch.float16,
+        load_in_8bit=LOAD_IN_8BIT,
+        device_map='auto'
+        )
+    print(f"Sucessfully loaded the model to the memory")
+    # トークナイザ―のロード
+    print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
+    tok = GPTNeoXTokenizerFast.from_pretrained(TOKENIZER_MODEL)
+    print(f"Sucessfully loaded the tokenizer to the memory")
+# Bloomモデルの場合
+elif MODEL_TYPE == "bloom":
+    from transformers import AutoModelForCausalLM, BloomTokenizerFast
+    # 改行を示す文字の設定
+    new_line = "\n"
+    # モデルのロード
+    print(f"Starting to load the model \"{BASE_MODEL}\" to memory")
+    m = AutoModelForCausalLM.from_pretrained(
+        BASE_MODEL,
+        torch_dtype=torch.float16,
+        load_in_8bit=LOAD_IN_8BIT,
+        device_map='auto'
+        )
+    print(f"Sucessfully loaded the model to the memory")
+    # トークナイザ―のロード
+    print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
+    tok = BloomTokenizerFast.from_pretrained(TOKENIZER_MODEL)
+    print(f"Sucessfully loaded the tokenizer to the memory")
+# Falconモデルの場合
+elif MODEL_TYPE == "falcon":
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    # 改行を示す文字の設定
+    new_line = "\n"
+    # モデルのロード
+    print(f"Starting to load the model \"{BASE_MODEL}\" to memory")
+    m = AutoModelForCausalLM.from_pretrained(
+        BASE_MODEL,
+        torch_dtype=torch.float16,
+        load_in_8bit=LOAD_IN_8BIT,
+        trust_remote_code=True,
+        device_map='auto'
+        )
+    print(f"Sucessfully loaded the model to the memory")
+    # トークナイザ―のロード
+    print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
+    tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL)
+    print(f"Sucessfully loaded the tokenizer to the memory")
+# MPTモデルの場合
+elif MODEL_TYPE == "mpt":
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    # 改行を示す文字の設定
+    new_line = "\n"
+    # モデルのロード
+    print(f"Starting to load the model \"{BASE_MODEL}\" to memory")
+    m = AutoModelForCausalLM.from_pretrained(
+        BASE_MODEL,
+        torch_dtype=torch.float16,
+        load_in_8bit=LOAD_IN_8BIT,
+        trust_remote_code=True,
+        device_map='auto'
+        )
+    print(f"Sucessfully loaded the model to the memory")
+    # トークナイザ―のロード
+    print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
+    tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL)
+    print(f"Sucessfully loaded the tokenizer to the memory")
 # MODEL_TYPE設定が正しくなければ終了する
 else:
     print(f"Invalid MODEL_TYPE \"{MODEL_TYPE}\"")
@@ -397,14 +510,19 @@ with gr.Blocks(title="LLM Simple WebUI", theme=gr.themes.Base()) as demo:
 
     submit_event = msg.submit(fn=user, inputs=[msg, chatbot], outputs=[msg, chatbot], queue=False).then(
         fn=chat, inputs=[system_msg, chatbot], outputs=[chatbot], queue=True)
+
     submit_click_event = submit.click(fn=user, inputs=[msg, chatbot], outputs=[msg, chatbot], queue=False).then(
         fn=chat, inputs=[system_msg, chatbot], outputs=[chatbot], queue=True)
+
     stop.click(fn=None, inputs=None, outputs=None, cancels=[
                submit_event, submit_click_event], queue=False)
+
     regenerate.click(fn=regen, inputs=[chatbot], outputs=[msg, chatbot], queue=False).then(
                lambda: None, None, [msg], queue=False).then(
                    fn=chat, inputs=[system_msg, chatbot], outputs=[chatbot], queue=True)
+
     removelast.click(fn=remove_last, inputs=[chatbot], outputs=[chatbot], queue=False)
+
     clear.click(lambda: None, None, [chatbot], queue=False)
 
 demo.queue(max_size=32, concurrency_count=2)
