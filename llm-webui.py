@@ -42,6 +42,8 @@ PROMPT_THRESHOLD = 1024
 # 履歴を削除する場合、何トークン未満まで削除するか
 PROMPT_DELETED = 512
 
+# 繰り返しペナルティ(大きいほど同じ繰り返しを生成しにくくなる)
+REPETITION_PENALTY = 1.1
 # 推論時に生成する最大トークン数
 MAX_NEW_TOKENS = 512
 # 推論時の出力の多様さ(大きいほどバリエーションが多様になる)
@@ -51,6 +53,9 @@ TEMPERATURE = 0.7
 GRADIO_HOST = '127.0.0.1'
 # WebUIがバインドするポート番号
 GRADIO_PORT = 7860
+
+# WebUI上に詳細設定を表示するか
+SETTING_VISIBLE = "on"
 
 # デバッグメッセージを標準出力に表示するか("on","off")
 DEBUG_FLAG = "on"
@@ -174,7 +179,7 @@ def prompt(curr_system_message, history):
     return messages
 
 
-def chat(curr_system_message, history):
+def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_top_p, p_repetition_penalty, p_max_new_tokens):
 
     # Initialize a StopOnTokens object
     stop = StopOnTokens()
@@ -232,17 +237,25 @@ def chat(curr_system_message, history):
     streamer = TextIteratorStreamer(
         tok, timeout=60., skip_prompt=True, skip_special_tokens=True)
 
+    if DEBUG_FLAG:
+        print(f"do_sample={p_do_sample}")
+        print(f"temperature={p_temperature}")
+        print(f"top_k={p_top_k}")
+        print(f"top_p={p_top_p}")
+        print(f"repetition_penalty={p_repetition_penalty}")
+        print(f"max_new_tokens={p_max_new_tokens}")
+
     # 推論設定
     generate_kwargs = dict(
         model_inputs,
         streamer=streamer,
-        max_new_tokens=MAX_NEW_TOKENS,
-        do_sample=True,
-        #top_p=0.95,
-        #top_k=40,
-        temperature=TEMPERATURE,
+        max_new_tokens=p_max_new_tokens,
+        do_sample=p_do_sample,
+        top_k=p_top_k,
+        top_p=p_top_p,
+        temperature=p_temperature,
         num_beams=1,
-        repetition_penalty=1.1,
+        repetition_penalty=p_repetition_penalty,
         pad_token_id=tok.pad_token_id,
         bos_token_id=tok.bos_token_id,
         eos_token_id=tok.eos_token_id,
@@ -284,7 +297,9 @@ parser.add_argument("--lora", type=str, default=LORA_WEIGHTS, help="LoRAディ�
 parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "stablelm", "redpajama", "falcon", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
 parser.add_argument("--prompt-threshold", type=int, default=PROMPT_THRESHOLD, help="このトークン数を超えたら古い履歴を削除")
 parser.add_argument("--prompt-deleted", type=int, default=PROMPT_DELETED, help="古い履歴削除時にこのトークン以下にする")
+parser.add_argument("--repetition-penalty", type=float, default=REPETITION_PENALTY, help="繰り返しに対するペナルティ")
 parser.add_argument("--max-new-tokens", type=int, default=MAX_NEW_TOKENS, help="推論時に生成するトークン数の最大")
+parser.add_argument("--setting-visible", type=str, choices=["on", "off"], default=SETTING_VISIBLE, help="詳細設定を表示するかどうか")
 parser.add_argument("--temperature", type=float, default=TEMPERATURE, help="生成する文章の多様さ")
 parser.add_argument("--host", type=str, default=GRADIO_HOST, help="WebサーバがバインドするIPアドレスorホスト名")
 parser.add_argument("--port", type=int, default=GRADIO_PORT, help="Webサーバがバインドするポート番号")
@@ -301,7 +316,9 @@ LORA_WEIGHTS = args.lora
 PROMPT_TYPE = args.prompt_type
 PROMPT_THRESHOLD = args.prompt_threshold
 PROMPT_DELETED = args.prompt_deleted
+REPETITION_PENALTY=args.repetition_penalty
 MAX_NEW_TOKENS = args.max_new_tokens
+SETTING_VISIBLE = args.setting_visible
 TEMPERATURE = args.temperature
 GRADIO_HOST = args.host
 GRADIO_PORT = args.port
@@ -321,7 +338,9 @@ else:
 print(f"プロンプトタイプ: {PROMPT_TYPE}")
 print(f"プロンプトトークン数しきい値: {PROMPT_THRESHOLD}")
 print(f"プロンプトトークン数削除値: {PROMPT_DELETED}")
+print(f"繰り返しペナルティ: {REPETITION_PENALTY}")
 print(f"生成最大トークン数: {MAX_NEW_TOKENS}")
+print(f"詳細設定表示: {SETTING_VISIBLE}")
 print(f"Temperature: {TEMPERATURE}")
 print(f"WebサーバIPorホスト名: {GRADIO_HOST}")
 print(f"Webサーバポート番号: {GRADIO_PORT}")
@@ -333,6 +352,11 @@ if LOAD_IN_8BIT == "on":
     LOAD_IN_8BIT = True
 else:
     LOAD_IN_8BIT = False
+# SETTING_VISIBLEはTrue or Falseに変換
+if SETTING_VISIBLE == "on":
+    SETTING_VISIBLE = True
+else:
+    SETTING_VISIBLE = False
 # DEBUG_FLAGはTrue or Falseに変換
 if DEBUG_FLAG == "on":
     DEBUG_FLAG = True
@@ -505,21 +529,31 @@ with gr.Blocks(title="LLM Simple WebUI", theme=gr.themes.Base()) as demo:
                 regenerate = gr.Button("Regenerate")
                 removelast = gr.Button("Remove last")
                 clear = gr.Button("Clear")
+    with gr.Accordion(label="Advanced Settings", open=False, visible=SETTING_VISIBLE):
+        with gr.Blocks():
+            p_do_sample = gr.Radio([True, False], value=True, label="Do Sample")
+            p_temperature = gr.Slider(minimum=0.1, maximum=1.0, value=TEMPERATURE, step=0.1, label="Temperature", interactive=True)
+            p_top_k = gr.Slider(minimum=0, maximum=1000, value=0, step=1, label="Top_K (0=無効)", interactive=True)
+            p_top_p = gr.Slider(minimum=0.01, maximum=1.00, value=1.00, step=0.01, label="Top_P (1.00=無効)", interactive=True)
+        with gr.Blocks():
+            p_max_new_tokens = gr.Slider(minimum=1, maximum=2048, value=MAX_NEW_TOKENS, step=1, label="Max New Tokens", interactive=True)
+            p_repetition_penalty = gr.Slider(minimum=1.00, maximum=5.00, value=REPETITION_PENALTY, step=0.01, label="Repetition Penalty (1.00=ペナルティなし)", interactive=True)
+
     system_msg = gr.Textbox(
         start_message, label="System Message", interactive=False, visible=False)
 
     submit_event = msg.submit(fn=user, inputs=[msg, chatbot], outputs=[msg, chatbot], queue=False).then(
-        fn=chat, inputs=[system_msg, chatbot], outputs=[chatbot], queue=True)
+        fn=chat, inputs=[system_msg, chatbot, p_do_sample, p_temperature, p_top_k, p_top_p, p_repetition_penalty, p_max_new_tokens], outputs=[chatbot], queue=True)
 
     submit_click_event = submit.click(fn=user, inputs=[msg, chatbot], outputs=[msg, chatbot], queue=False).then(
-        fn=chat, inputs=[system_msg, chatbot], outputs=[chatbot], queue=True)
+        fn=chat, inputs=[system_msg, chatbot, p_do_sample, p_temperature, p_top_k, p_top_p, p_repetition_penalty, p_max_new_tokens], outputs=[chatbot], queue=True)
 
     stop.click(fn=None, inputs=None, outputs=None, cancels=[
                submit_event, submit_click_event], queue=False)
 
     regenerate.click(fn=regen, inputs=[chatbot], outputs=[msg, chatbot], queue=False).then(
                lambda: None, None, [msg], queue=False).then(
-                   fn=chat, inputs=[system_msg, chatbot], outputs=[chatbot], queue=True)
+                   fn=chat, inputs=[system_msg, chatbot, p_do_sample, p_temperature, p_top_k, p_top_p, p_repetition_penalty, p_max_new_tokens], outputs=[chatbot], queue=True)
 
     removelast.click(fn=remove_last, inputs=[chatbot], outputs=[chatbot], queue=False)
 
