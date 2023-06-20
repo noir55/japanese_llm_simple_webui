@@ -35,7 +35,7 @@ LOAD_IN_8BIT = "off"
 # LoRAのディレクトリ(空文字列に設定すると読み込まない)
 LORA_WEIGHTS = ""
 
-# プロンプトタイプ("rinna","vicuna","alpaca","stablelm","redpajama","falcon","none")
+# プロンプトタイプ("rinna","vicuna","alpaca","stablelm","redpajama","falcon","qa","none")
 PROMPT_TYPE = "rinna"
 # プロンプトが何トークンを超えたら履歴を削除するか
 PROMPT_THRESHOLD = 1024
@@ -68,7 +68,10 @@ DEBUG_FLAG = "on"
 class StopOnTokens(StoppingCriteria):
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
         # モデルからこのトークンIDが出力されたら生成をストップする
-        if MODEL_TYPE == "stablelm":
+        if MODEL_TYPE == "llama":
+            # 13="\n" (改行が出力されたらストップしたい場合は「13」も追加する)
+            stop_ids = [1 ,0]
+        elif MODEL_TYPE == "stablelm":
             # 50278="<|USER|>"、50279="<|ASSISTANT|>"、50277="<|SYSTEM|>"、1="<|padding|>"、0="<|endoftext|>"
             stop_ids = [50278, 50279, 50277, 1, 0]
         elif MODEL_TYPE == "mpt":
@@ -165,6 +168,11 @@ def prompt(curr_system_message, history):
     elif PROMPT_TYPE == "falcon":
         messages = curr_system_message + \
             new_line.join([new_line.join(["User: "+item[0], "Asisstant:"+item[1]])
+                    for item in history])
+    # Q&A形式のプロンプト生成
+    elif PROMPT_TYPE == "qa":
+        messages = curr_system_message + \
+            new_line.join([new_line.join(["Q: "+item[0], "A: "+item[1]])
                     for item in history])
     # 特定の書式を使用しない(入力した文章の続きを生成する)場合のプロンプト生成
     elif PROMPT_TYPE == "none":
@@ -294,7 +302,7 @@ parser.add_argument("--model-type", type=str, choices=["rinna", "opencalm", "lla
 parser.add_argument("--tokenizer", type=str, default=TOKENIZER_MODEL, help="トークナイザー名またはディレクトリのパス")
 parser.add_argument("--load-in-8bit", type=str, choices=["on", "off"], default=LOAD_IN_8BIT, help="モデル名またはディレクトリのパス")
 parser.add_argument("--lora", type=str, default=LORA_WEIGHTS, help="LoRAディレクトリのパス")
-parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "stablelm", "redpajama", "falcon", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
+parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "stablelm", "redpajama", "falcon", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
 parser.add_argument("--prompt-threshold", type=int, default=PROMPT_THRESHOLD, help="このトークン数を超えたら古い履歴を削除")
 parser.add_argument("--prompt-deleted", type=int, default=PROMPT_DELETED, help="古い履歴削除時にこのトークン以下にする")
 parser.add_argument("--repetition-penalty", type=float, default=REPETITION_PENALTY, help="繰り返しに対するペナルティ")
@@ -548,12 +556,11 @@ with gr.Blocks(title="LLM Simple WebUI", theme=gr.themes.Base()) as demo:
     submit_click_event = submit.click(fn=user, inputs=[msg, chatbot], outputs=[msg, chatbot], queue=False).then(
         fn=chat, inputs=[system_msg, chatbot, p_do_sample, p_temperature, p_top_k, p_top_p, p_repetition_penalty, p_max_new_tokens], outputs=[chatbot], queue=True)
 
-    stop.click(fn=None, inputs=None, outputs=None, cancels=[
-               submit_event, submit_click_event], queue=False)
-
-    regenerate.click(fn=regen, inputs=[chatbot], outputs=[msg, chatbot], queue=False).then(
+    regenerate_click_event = regenerate.click(fn=regen, inputs=[chatbot], outputs=[msg, chatbot], queue=False).then(
                lambda: None, None, [msg], queue=False).then(
                    fn=chat, inputs=[system_msg, chatbot, p_do_sample, p_temperature, p_top_k, p_top_p, p_repetition_penalty, p_max_new_tokens], outputs=[chatbot], queue=True)
+
+    stop.click(fn=None, inputs=None, outputs=None, cancels=[submit_event, submit_click_event, regenerate_click_event], queue=False)
 
     removelast.click(fn=remove_last, inputs=[chatbot], outputs=[chatbot], queue=False)
 

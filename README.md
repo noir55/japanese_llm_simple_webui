@@ -6,7 +6,7 @@ Rinna-3.6B、OpenCALM等の日本語対応LLM用の簡易Webチャットイン�
 - ストリーミング(生成中の表示)に対応
 - LoRAの読み込みに対応
 - [Rinna Japanese GPT NeoX 3.6B Instruction PPO](https://huggingface.co/rinna/japanese-gpt-neox-3.6b-instruction-ppo)、[OpenCALM 7B](https://huggingface.co/cyberagent/open-calm-7b)、[Vicuna 7B](https://huggingface.co/lmsys/vicuna-7b-delta-v1.1) で起動できることを確認しています
-- [stablelm-tuned-alpha-chat](https://huggingface.co/spaces/stabilityai/stablelm-tuned-alpha-chat/tree/main) をベースに [Stability AIのチャットスクリプトを利用してRinnaのチャットモデルとお話する](https://nowokay.hatenablog.com/entry/2023/05/22/122040) などを参考にさせていただき、機能を追加しています
+- [stablelm-tuned-alpha-chat](https://huggingface.co/spaces/stabilityai/stablelm-tuned-alpha-chat/tree/main) をベースに [Stability AIのチャットスクリプトを利用してRinnaのチャットモデルとお話する](https://nowokay.hatenablog.com/entry/2023/05/22/122040) などを参考に機能を追加しています
 
 # 動作要件
 - NVIDIA GPU、CUDA 環境前提です (GeForce RTX 3060、CUDA 11.7 環境で作成しています)
@@ -32,7 +32,7 @@ $ python3 llm-webui.py \
     --tokenizer rinna/japanese-gpt-neox-3.6b-instruction-sft-v2 \
     --load-in-8bit off \
     --prompt-type rinna \
-    --title "Rinna 3.6B Instruction SFT Chat" \
+    --title "Rinna 3.6B Instruction SFT Chat"
 ```
 
 OpenCALM 7Bモデルでの実行コマンド例
@@ -43,7 +43,7 @@ $ python3 llm-webui.py \
         --tokenizer cyberagent/open-calm-7b \
         --load-in-8bit on \
         --prompt-type none \
-        --title "Open CALM 7B Chat" \
+        --title "Open CALM 7B Chat"
 ```
 
 
@@ -65,6 +65,9 @@ $ python3 llm-webui.py \
 | --prompt-threshold <トークン数>      | プロンプト生成時に会話履歴を含めたトークン数がここで設定した数を超えると会話履歴が古い順に削除される |
 | --prompt-deleted <トークン数>        | `--prompt-threshold` 設定値を超えて会話履歴が削除される場合、ここで指定したトークン数以下になるまで削除される |
 | --max-new-tokens <トークン数>        | モデルが一度に生成する最大トークン数 |
+| --temperature <Temperature値>        | 値を大きくすると多様な出力を行うようになる。0～1の間の値を設定する |
+| --repetition-penalty <繰り返しペナルティ値>        | 値を大きくすると、繰り返しが発生しにくくなる。1.0だとペナルティなしとなる |
+| --setting-visible <on/off>        | Advanced SettingsをWebUI上に表示するかどうか |
 | --host <IPアドレス>                  | WebUIがバインドするアドレスを指定する。同じPC上のブラウザから使用する場合は `127.0.0.1` でよい |
 | --port <ポート番号>                  | WebUIがバインドするポート番号を指定する。他のプログラムが使用していなければいくつでもよいが、Linux上で実行する場合、1024以下を指定するには通常root権限が必要 |
 | --title "<タイトル文字列>"           | WebUIの最上部に表示するタイトルを任意に指定可能 |
@@ -155,3 +158,18 @@ Below is an instruction that describes a task. Write a response that appropriate
 <human>: <ユーザの入力した文章>
 <bot>: <モデルの出力した文章>
 ```
+
+
+### プロンプトタイプ名 `qa`
+推奨モデル
+ - Open LLaMA
+
+プロンプト形式
+```
+Q: <ユーザの入力した文章>
+A: <モデルの出力した文章>
+```
+
+# ライセンス
+
+Japanese LLM Simple WebUI is under [MIT license](https://en.wikipedia.org/wiki/MIT_License).
