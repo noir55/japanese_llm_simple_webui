@@ -60,6 +60,7 @@ $ python3 llm-webui.py \
 | --model-type <モデルタイプ名>        | モデルタイプを指定する。タイプによりモデル読み込み方法、トークナイズ処理、改行の扱いなどが変わる |
 | --tokenizer <トークナイザー名orパス> | トークナイザーのモデル名または、保存したディレクトリのパスを指定する。通常は `--model` で指定した値と同じでよい |
 | --load-in-8bit <on/off>              | モデルを8ビット精度で実行する。GPUメモリ量の削減になる |
+| --load-in-4bit <on/off>              | モデルを4ビット精度で実行する。GPUメモリ量の削減になる |
 | --prompt-type <プロンプトタイプ名>   | 使用するプロンプトテンプレートを指定する。基本的にはモデルの学習に使用されたテンプレートを指定する。詳細は下の項目を参照 |
 | --lora <LoRA保存ディレクトリパス>    | LoRAを読み込みたい場合、保存されたディレクトリのパスを指定する |
 | --prompt-threshold <トークン数>      | プロンプト生成時に会話履歴を含めたトークン数がここで設定した数を超えると会話履歴が古い順に削除される |
@@ -157,6 +158,20 @@ Below is an instruction that describes a task. Write a response that appropriate
 ```
 <human>: <ユーザの入力した文章>
 <bot>: <モデルの出力した文章>
+```
+
+
+### プロンプトタイプ名 `xgen`
+推奨モデル
+ - XGen 7B 8K Inst
+
+プロンプト形式
+```
+A chat between a curious human and an artificial intelligence assistant.
+The assistant gives helpful, detailed, and polite answers to the human's questions.
+
+### Human: <ユーザの入力した文章>
+### Asisstant: <モデルの出力した文章>
 ```
 
 
