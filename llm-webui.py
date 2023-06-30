@@ -177,7 +177,7 @@ def prompt(curr_system_message, history):
     elif PROMPT_TYPE == "xgen":
         prefix = f"""A chat between a curious human and an artificial intelligence assistant.{new_line}The assistant gives helpful, detailed, and polite answers to the human's questions.{new_line}{new_line}"""
         messages = curr_system_message + \
-                new_line.join([new_line.join(["### Human: "+item[0], "### Asisstant:"+item[1]])
+                new_line.join([new_line.join(["### Human: "+item[0], "### Asisstant: "+item[1]])
                     for item in history])
         messages = prefix + messages
     # Q&A形式のプロンプト生成
