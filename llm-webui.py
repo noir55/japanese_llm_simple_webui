@@ -31,6 +31,8 @@ BASE_MODEL = "rinna/japanese-gpt-neox-3.6b-instruction-ppo"
 TOKENIZER_MODEL = "rinna/japanese-gpt-neox-3.6b-instruction-ppo"
 # モデルを8ビット量子化で実行するか("on","off")
 LOAD_IN_8BIT = "off"
+# モデルを4ビット量子化で実行するか("on","off") bitsandbytes 0.39.0 以降が必要
+LOAD_IN_4BIT = "off"
 
 # LoRAのディレクトリ(空文字列に設定すると読み込まない)
 LORA_WEIGHTS = ""
@@ -80,6 +82,8 @@ class StopOnTokens(StoppingCriteria):
         elif MODEL_TYPE == "falcon":
             # 193="\n"、11="<|endoftext|>" (改行が出力されたらストップしたい場合は「193」も追加する)
             stop_ids = [11]
+        elif MODEL_TYPE == "xgen":
+            stop_ids = [50256]
         else:
             # ほとんどのトークナイザーは 1="<|padding|>"、0="<|endoftext|>"
             stop_ids = [1, 0]
@@ -169,6 +173,13 @@ def prompt(curr_system_message, history):
         messages = curr_system_message + \
             new_line.join([new_line.join(["User: "+item[0], "Asisstant:"+item[1]])
                     for item in history])
+    # XGen形式のプロンプト生成
+    elif PROMPT_TYPE == "xgen":
+        prefix = f"""A chat between a curious human and an artificial intelligence assistant.{new_line}The assistant gives helpful, detailed, and polite answers to the human's questions.{new_line}{new_line}"""
+        messages = curr_system_message + \
+                new_line.join([new_line.join(["### Human: "+item[0], "### Asisstant:"+item[1]])
+                    for item in history])
+        messages = prefix + messages
     # Q&A形式のプロンプト生成
     elif PROMPT_TYPE == "qa":
         messages = curr_system_message + \
@@ -222,6 +233,8 @@ def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_to
             model_inputs = tok([messages], return_tensors="pt")
             model_inputs.pop('token_type_ids')
         elif MODEL_TYPE == "mpt":
+            model_inputs = tok([messages], return_tensors="pt")
+        elif MODEL_TYPE == "xgen":
             model_inputs = tok([messages], return_tensors="pt")
         # もしプロンプトのトークン数が多すぎる場合は削除フラグを設定
         if del_flag == 0 and len(model_inputs['input_ids'][0]) > PROMPT_THRESHOLD:
@@ -281,6 +294,9 @@ def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_to
         # Rinnaモデルの場合"<NL>"を改行に変換
         if MODEL_TYPE == "rinna":
             new_text = re.sub("<NL>", "\n", new_text)
+        # XGenモデルの場合<|endoftext|>は表示させない
+        if MODEL_TYPE == "xgen":
+            new_text = re.sub("^<\|endoftext\|>$", "", new_text)
         #print(new_text)
         partial_text += new_text
         history[-1][1] = partial_text
@@ -298,11 +314,12 @@ def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_to
 # 引数を取得
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default=BASE_MODEL, help="モデル名またはディレクトリのパス")
-parser.add_argument("--model-type", type=str, choices=["rinna", "opencalm", "llama", "stablelm", "bloom", "falcon", "mpt"],  default=MODEL_TYPE, help="モデルタイプ名")
+parser.add_argument("--model-type", type=str, choices=["rinna", "opencalm", "llama", "stablelm", "bloom", "falcon", "mpt", "xgen"],  default=MODEL_TYPE, help="モデルタイプ名")
 parser.add_argument("--tokenizer", type=str, default=TOKENIZER_MODEL, help="トークナイザー名またはディレクトリのパス")
-parser.add_argument("--load-in-8bit", type=str, choices=["on", "off"], default=LOAD_IN_8BIT, help="モデル名またはディレクトリのパス")
+parser.add_argument("--load-in-8bit", type=str, choices=["on", "off"], default=LOAD_IN_8BIT, help="8bit量子化するかどうか")
+parser.add_argument("--load-in-4bit", type=str, choices=["on", "off"], default=LOAD_IN_4BIT, help="4bit量子化するかどうか")
 parser.add_argument("--lora", type=str, default=LORA_WEIGHTS, help="LoRAディレクトリのパス")
-parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "stablelm", "redpajama", "falcon", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
+parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "stablelm", "redpajama", "falcon", "xgen", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
 parser.add_argument("--prompt-threshold", type=int, default=PROMPT_THRESHOLD, help="このトークン数を超えたら古い履歴を削除")
 parser.add_argument("--prompt-deleted", type=int, default=PROMPT_DELETED, help="古い履歴削除時にこのトークン以下にする")
 parser.add_argument("--repetition-penalty", type=float, default=REPETITION_PENALTY, help="繰り返しに対するペナルティ")
@@ -320,6 +337,7 @@ BASE_MODEL = args.model
 MODEL_TYPE = args.model_type
 TOKENIZER_MODEL = args.tokenizer
 LOAD_IN_8BIT = args.load_in_8bit
+LOAD_IN_4BIT = args.load_in_4bit
 LORA_WEIGHTS = args.lora
 PROMPT_TYPE = args.prompt_type
 PROMPT_THRESHOLD = args.prompt_threshold
@@ -339,6 +357,7 @@ print(f"モデル名orパス: {BASE_MODEL}")
 print(f"モデルタイプ名: {MODEL_TYPE}")
 print(f"トークナイザー: {TOKENIZER_MODEL}")
 print(f"8bit量子化: {LOAD_IN_8BIT}")
+print(f"4bit量子化: {LOAD_IN_4BIT}")
 if LORA_WEIGHTS == "":
     print(f"LoRAモデルパス: (LoRAなし)")
 else:
@@ -360,6 +379,11 @@ if LOAD_IN_8BIT == "on":
     LOAD_IN_8BIT = True
 else:
     LOAD_IN_8BIT = False
+# LOAD_IN_4BITはTrue or Falseに変換
+if LOAD_IN_4BIT == "on":
+    LOAD_IN_4BIT = True
+else:
+    LOAD_IN_4BIT = False
 # SETTING_VISIBLEはTrue or Falseに変換
 if SETTING_VISIBLE == "on":
     SETTING_VISIBLE = True
@@ -384,6 +408,7 @@ if MODEL_TYPE == "rinna":
         BASE_MODEL, 
         torch_dtype=torch.float16, 
         load_in_8bit=LOAD_IN_8BIT, 
+        load_in_4bit=LOAD_IN_4BIT, 
         device_map='auto'
         )
     print(f"Sucessfully loaded the model to the memory")
@@ -404,6 +429,7 @@ elif MODEL_TYPE == "opencalm":
         BASE_MODEL, 
         torch_dtype=torch.float16, 
         load_in_8bit=LOAD_IN_8BIT, 
+        load_in_4bit=LOAD_IN_4BIT, 
         device_map='auto'
         )
     print(f"Sucessfully loaded the model to the memory")
@@ -422,6 +448,7 @@ elif MODEL_TYPE == "llama":
         BASE_MODEL, 
         torch_dtype=torch.float16, 
         load_in_8bit=LOAD_IN_8BIT, 
+        load_in_4bit=LOAD_IN_4BIT, 
         device_map='auto'
         )
     print(f"Sucessfully loaded the model to the memory")
@@ -440,6 +467,7 @@ elif MODEL_TYPE == "stablelm":
         BASE_MODEL,
         torch_dtype=torch.float16,
         load_in_8bit=LOAD_IN_8BIT,
+        load_in_4bit=LOAD_IN_4BIT, 
         device_map='auto'
         )
     print(f"Sucessfully loaded the model to the memory")
@@ -458,6 +486,7 @@ elif MODEL_TYPE == "bloom":
         BASE_MODEL,
         torch_dtype=torch.float16,
         load_in_8bit=LOAD_IN_8BIT,
+        load_in_4bit=LOAD_IN_4BIT, 
         device_map='auto'
         )
     print(f"Sucessfully loaded the model to the memory")
@@ -476,6 +505,7 @@ elif MODEL_TYPE == "falcon":
         BASE_MODEL,
         torch_dtype=torch.float16,
         load_in_8bit=LOAD_IN_8BIT,
+        load_in_4bit=LOAD_IN_4BIT, 
         trust_remote_code=True,
         device_map='auto'
         )
@@ -495,6 +525,7 @@ elif MODEL_TYPE == "mpt":
         BASE_MODEL,
         torch_dtype=torch.float16,
         load_in_8bit=LOAD_IN_8BIT,
+        load_in_4bit=LOAD_IN_4BIT, 
         trust_remote_code=True,
         device_map='auto'
         )
@@ -502,6 +533,24 @@ elif MODEL_TYPE == "mpt":
     # トークナイザ―のロード
     print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
     tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL)
+    print(f"Sucessfully loaded the tokenizer to the memory")
+# Xgenモデルの場合
+elif MODEL_TYPE == "xgen":
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    # 改行を示す文字の設定
+    new_line = "\n"
+    # モデルのロード
+    print(f"Starting to load the model \"{BASE_MODEL}\" to memory")
+    m = AutoModelForCausalLM.from_pretrained(
+        BASE_MODEL,
+        torch_dtype=torch.float16,
+        load_in_8bit=LOAD_IN_8BIT,
+        device_map='auto'
+        )
+    print(f"Sucessfully loaded the model to the memory")
+    # トークナイザ―のロード
+    print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
+    tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL, trust_remote_code=True)
     print(f"Sucessfully loaded the tokenizer to the memory")
 # MODEL_TYPE設定が正しくなければ終了する
 else:
