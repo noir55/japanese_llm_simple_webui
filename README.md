@@ -106,6 +106,8 @@ $ python3 llm-webui.py \
 推奨モデル
  - Rinna Japanese GPT NeoX 3.6b Instruction PPO
  - Rinna Japanese GPT NeoX 3.6b Instruction SFT V2
+ - Rinna Bilingual GPT NeoX 4b Instruction PPO 
+ - Rinna Bilingual GPT NeoX 4b Instruction SFT
 
 プロンプト形式
 ```
