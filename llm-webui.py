@@ -23,7 +23,7 @@ VERSION = "1.0.0"
 # ページの最上部に表示させたいタイトルを設定
 TITLE_STRINGS = "Rinna 3.6B Instruction PPO Chat"
 
-# モデルタイプ("rinna","opencalm","llama","stablelm","bloom","falcon","mpt")
+# モデルタイプ("rinna","rinna4b","opencalm","llama","stablelm","bloom","falcon","mpt")
 MODEL_TYPE = "rinna"
 # ベースモデルを設定
 BASE_MODEL = "rinna/japanese-gpt-neox-3.6b-instruction-ppo"
@@ -37,7 +37,7 @@ LOAD_IN_4BIT = "off"
 # LoRAのディレクトリ(空文字列に設定すると読み込まない)
 LORA_WEIGHTS = ""
 
-# プロンプトタイプ("rinna","vicuna","alpaca","llama2","stablelm","redpajama","falcon","qa","none")
+# プロンプトタイプ("rinna","vicuna","alpaca","llama2","beluga","stablelm","redpajama","falcon","qa","none")
 PROMPT_TYPE = "rinna"
 # プロンプトが何トークンを超えたら履歴を削除するか
 PROMPT_THRESHOLD = 1024
@@ -72,7 +72,7 @@ class StopOnTokens(StoppingCriteria):
         # モデルからこのトークンIDが出力されたら生成をストップする
         if MODEL_TYPE == "llama":
             # 13="\n" (改行が出力されたらストップしたい場合は「13」も追加する)
-            stop_ids = [2, 1 ,0]
+            stop_ids = [32000, 2, 1 ,0]
         elif MODEL_TYPE == "stablelm":
             # 50278="<|USER|>"、50279="<|ASSISTANT|>"、50277="<|SYSTEM|>"、1="<|padding|>"、0="<|endoftext|>"
             stop_ids = [50278, 50279, 50277, 1, 0]
@@ -158,9 +158,16 @@ def prompt(curr_system_message, history):
         messages = prefix + messages
     # Llama2 Chat形式のプロンプト生成
     elif PROMPT_TYPE == "llama2":
-        prefix = f"""You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature.{new_line}{new_line}If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.{new_line}"""
+        prefix = f"""System: You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature. If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.{new_line}"""
         messages = curr_system_message + \
-            "".join(["".join([f"User: "+item[0], f"Assistant: "+item[1]])
+            new_line.join([new_line.join([f"User: "+item[0], f"Assistant: "+item[1]])
+                    for item in history])
+        messages = prefix + messages
+    # StableBeluga2形式のプロンプト生成
+    elif PROMPT_TYPE == "beluga":
+        prefix = f"""### System:{new_line}You are Stable Beluga, an AI that follows instructions extremely well. Help as much as you can. Remember, be safe, and don't do anything illegal.{new_line}{new_line}"""
+        messages = curr_system_message + \
+            f"{new_line}{new_line}".join([new_line.join([f"### User:{new_line}"+item[0], f"{new_line}### Assistant:{new_line}"+item[1]])
                     for item in history])
         messages = prefix + messages
     # StableLM形式のプロンプト生成
@@ -228,6 +235,8 @@ def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_to
         if MODEL_TYPE == "rinna":
             messages = re.sub("\n", "<NL>", messages)
             model_inputs = tok([messages], return_tensors="pt", add_special_tokens=False, padding=True)
+        elif MODEL_TYPE == "rinna4b":
+            model_inputs = tok([messages], return_tensors="pt", add_special_tokens=False)
         elif MODEL_TYPE == "opencalm":
             model_inputs = tok([messages], return_tensors="pt")
         elif MODEL_TYPE == "llama":
@@ -321,12 +330,12 @@ def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_to
 # 引数を取得
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default=BASE_MODEL, help="モデル名またはディレクトリのパス")
-parser.add_argument("--model-type", type=str, choices=["rinna", "opencalm", "llama", "stablelm", "bloom", "falcon", "mpt", "xgen"],  default=MODEL_TYPE, help="モデルタイプ名")
+parser.add_argument("--model-type", type=str, choices=["rinna", "rinna4b", "opencalm", "llama", "stablelm", "bloom", "falcon", "mpt", "xgen"],  default=MODEL_TYPE, help="モデルタイプ名")
 parser.add_argument("--tokenizer", type=str, default=TOKENIZER_MODEL, help="トークナイザー名またはディレクトリのパス")
 parser.add_argument("--load-in-8bit", type=str, choices=["on", "off"], default=LOAD_IN_8BIT, help="8bit量子化するかどうか")
 parser.add_argument("--load-in-4bit", type=str, choices=["on", "off"], default=LOAD_IN_4BIT, help="4bit量子化するかどうか")
 parser.add_argument("--lora", type=str, default=LORA_WEIGHTS, help="LoRAディレクトリのパス")
-parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "stablelm", "redpajama", "falcon", "xgen", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
+parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "beluga", "stablelm", "redpajama", "falcon", "xgen", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
 parser.add_argument("--prompt-threshold", type=int, default=PROMPT_THRESHOLD, help="このトークン数を超えたら古い履歴を削除")
 parser.add_argument("--prompt-deleted", type=int, default=PROMPT_DELETED, help="古い履歴削除時にこのトークン以下にする")
 parser.add_argument("--repetition-penalty", type=float, default=REPETITION_PENALTY, help="繰り返しに対するペナルティ")
@@ -425,6 +434,27 @@ if MODEL_TYPE == "rinna":
     print(f"Sucessfully loaded the tokenizer to the memory")
     # padding設定
     m.config.pad_token_id = tok.eos_token_id
+# Rinna-4Bモデルの場合
+if MODEL_TYPE == "rinna4b":
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    # 改行を示す文字の設定
+    new_line = "\n"
+    # モデルのロード
+    print(f"Starting to load the model \"{BASE_MODEL}\" to memory")
+    m = AutoModelForCausalLM.from_pretrained(
+        BASE_MODEL, 
+        torch_dtype=torch.float16, 
+        load_in_8bit=LOAD_IN_8BIT, 
+        load_in_4bit=LOAD_IN_4BIT, 
+        device_map='auto'
+        )
+    print(f"Sucessfully loaded the model to the memory")
+    # トークナイザ―のロード
+    print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
+    tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL, use_fast=False)
+    print(f"Sucessfully loaded the tokenizer to the memory")
+    # padding設定
+    m.config.pad_token_id = tok.eos_token_id
 # Open CALMモデルの場合
 elif MODEL_TYPE == "opencalm":
     from transformers import AutoModelForCausalLM, GPTNeoXTokenizerFast
@@ -456,7 +486,8 @@ elif MODEL_TYPE == "llama":
         torch_dtype=torch.float16, 
         load_in_8bit=LOAD_IN_8BIT, 
         load_in_4bit=LOAD_IN_4BIT, 
-        device_map='auto'
+        device_map='auto',
+        rope_scaling={"type": "dynamic", "factor": 2.0}
         )
     print(f"Sucessfully loaded the model to the memory")
     # トークナイザ―のロード

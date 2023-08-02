@@ -46,6 +46,16 @@ $ python3 llm-webui.py \
         --title "Open CALM 7B Chat"
 ```
 
+Rinna Bilingual GPT NeoX 4B Instruction SFTモデルでの実行コマンド例
+```bash
+$ python3 llm-webui.py \
+        --model rinna/bilingual-gpt-neox-4b-instruction-sft \
+        --model-type rinna4b \
+        --tokenizer rinna/bilingual-gpt-neox-4b-instruction-sft \
+        --load-in-8bit off \
+        --prompt-type rinna \
+        --title "Rinna Bilingual 4B Instruction SFT Chat"
+```
 
 - 起動したら、ブラウザで http://127.0.0.1:7860 (IPアドレス、ポート番号を変更した場合はそれに合わせてください)を開いてください
 
@@ -131,6 +141,37 @@ Below is an instruction that describes a task. Write a response that appropriate
 <ユーザの入力した文章>
 
 ### Response:
+<モデルの出力した文章>
+```
+
+
+### プロンプトタイプ名 `llama2`
+推奨モデル
+ - Llama 2 Chat
+
+プロンプト形式
+```
+System: You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. Please ensure that your responses are socially unbiased and positive in nature. If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information.
+User:
+<ユーザの入力した文章>
+Assistant:
+<モデルの出力した文章>
+```
+
+
+### プロンプトタイプ名 `beluga`
+推奨モデル
+ - Stable Beluga
+
+プロンプト形式
+```
+### System:
+You are Stable Beluga, an AI that follows instructions extremely well. Help as much as you can. Remember, be safe, and don't do anything illegal.
+
+### User:
+<ユーザの入力した文章>
+
+### Assistant:
 <モデルの出力した文章>
 ```
 
