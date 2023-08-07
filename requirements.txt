@@ -1,0 +1,7 @@
+torch==2.0.1
+torchaudio==2.0.2
+torchvision==0.15.2
+gradio==3.39.0
+peft==0.4.0
+sentencepiece==0.1.99
+transformers==4.30.2
