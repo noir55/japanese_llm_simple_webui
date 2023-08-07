@@ -435,7 +435,7 @@ if MODEL_TYPE == "rinna":
     # padding設定
     m.config.pad_token_id = tok.eos_token_id
 # Rinna-4Bモデルの場合
-if MODEL_TYPE == "rinna4b":
+elif MODEL_TYPE == "rinna4b":
     from transformers import AutoModelForCausalLM, AutoTokenizer
     # 改行を示す文字の設定
     new_line = "\n"
