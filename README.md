@@ -38,23 +38,34 @@ $ python3 llm-webui.py \
 OpenCALM 7Bモデルでの実行コマンド例
 ```bash
 $ python3 llm-webui.py \
-        --model cyberagent/open-calm-7b \
-        --model-type opencalm \
-        --tokenizer cyberagent/open-calm-7b \
-        --load-in-8bit on \
-        --prompt-type none \
-        --title "Open CALM 7B Chat"
+    --model cyberagent/open-calm-7b \
+    --model-type opencalm \
+    --tokenizer cyberagent/open-calm-7b \
+    --load-in-8bit on \
+    --prompt-type none \
+    --title "Open CALM 7B Chat"
 ```
 
 Rinna Bilingual GPT NeoX 4B Instruction SFTモデルでの実行コマンド例
 ```bash
 $ python3 llm-webui.py \
-        --model rinna/bilingual-gpt-neox-4b-instruction-sft \
-        --model-type rinna4b \
-        --tokenizer rinna/bilingual-gpt-neox-4b-instruction-sft \
-        --load-in-8bit off \
-        --prompt-type rinna \
-        --title "Rinna Bilingual 4B Instruction SFT Chat"
+    --model rinna/bilingual-gpt-neox-4b-instruction-sft \
+    --model-type rinna4b \
+    --tokenizer rinna/bilingual-gpt-neox-4b-instruction-sft \
+    --load-in-8bit off \
+    --prompt-type rinna \
+    --title "Rinna Bilingual 4B Instruction SFT Chat"
+```
+
+Japanese StableLM Base Alpha 7Bモデルでの実行コマンド例
+```bash
+$ python3 llm-webui.py \
+    --model stabilityai/japanese-stablelm-base-alpha-7b \
+    --model-type ja-stablelm \
+    --tokenizer novelai/nerdstash-tokenizer-v1 \
+    --load-in-8bit on \
+    --prompt-type none \
+    --title "Japanese StableLM Chat"
 ```
 
 - 起動したら、ブラウザで http://127.0.0.1:7860 (IPアドレス、ポート番号を変更した場合はそれに合わせてください)を開いてください

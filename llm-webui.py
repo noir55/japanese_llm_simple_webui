@@ -23,7 +23,7 @@ VERSION = "1.0.0"
 # ページの最上部に表示させたいタイトルを設定
 TITLE_STRINGS = "Rinna 3.6B Instruction PPO Chat"
 
-# モデルタイプ("rinna","rinna4b","opencalm","llama","stablelm","bloom","falcon","mpt")
+# モデルタイプ("rinna","rinna4b","opencalm","llama","ja-stablelm","stablelm","bloom","falcon","mpt")
 MODEL_TYPE = "rinna"
 # ベースモデルを設定
 BASE_MODEL = "rinna/japanese-gpt-neox-3.6b-instruction-ppo"
@@ -37,7 +37,7 @@ LOAD_IN_4BIT = "off"
 # LoRAのディレクトリ(空文字列に設定すると読み込まない)
 LORA_WEIGHTS = ""
 
-# プロンプトタイプ("rinna","vicuna","alpaca","llama2","beluga","stablelm","redpajama","falcon","qa","none")
+# プロンプトタイプ("rinna","vicuna","alpaca","llama2","beluga","ja-stablelm","stablelm","redpajama","falcon","qa","none")
 PROMPT_TYPE = "rinna"
 # プロンプトが何トークンを超えたら履歴を削除するか
 PROMPT_THRESHOLD = 1024
@@ -72,7 +72,7 @@ class StopOnTokens(StoppingCriteria):
         # モデルからこのトークンIDが出力されたら生成をストップする
         if MODEL_TYPE == "llama":
             # 13="\n" (改行が出力されたらストップしたい場合は「13」も追加する)
-            stop_ids = [32000, 2, 1 ,0]
+            stop_ids = [2, 1 ,0]
         elif MODEL_TYPE == "stablelm":
             # 50278="<|USER|>"、50279="<|ASSISTANT|>"、50277="<|SYSTEM|>"、1="<|padding|>"、0="<|endoftext|>"
             stop_ids = [50278, 50279, 50277, 1, 0]
@@ -170,6 +170,13 @@ def prompt(curr_system_message, history):
             f"{new_line}{new_line}".join([new_line.join([f"### User:{new_line}"+item[0], f"{new_line}### Assistant:{new_line}"+item[1]])
                     for item in history])
         messages = prefix + messages
+    # Japanese StableLM形式のプロンプト生成
+    elif PROMPT_TYPE == "ja-stablelm":
+        prefix = f"""以下は、タスクを説明する指示と、文脈のある入力の組み合わせです。要求を適切に満たす応答を書きなさい。{new_line}{new_line}"""
+        messages = curr_system_message + \
+            f"{new_line}".join([new_line.join([f"### 指示: "+item[0], f"### 応答: "+item[1]])
+                    for item in history])
+        messages = prefix + messages
     # StableLM形式のプロンプト生成
     elif PROMPT_TYPE == "stablelm":
         prefix = f"""<|SYSTEM|># StableLM Tuned (Alpha version){new_line}- StableLM is a helpful and harmless open-source AI language model developed by StabilityAI.{new_line}- StableLM is excited to be able to help the user, but will refuse to do anything that could be considered harmful to the user.{new_line}- StableLM is more than just an information source, StableLM is also able to write poetry, short stories, and make jokes.{new_line}- StableLM will refuse to participate in anything that could harm a human.{new_line}"""
@@ -241,6 +248,8 @@ def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_to
             model_inputs = tok([messages], return_tensors="pt")
         elif MODEL_TYPE == "llama":
             model_inputs = tok([messages], return_tensors="pt")
+        elif MODEL_TYPE == "ja-stablelm":
+            model_inputs = tok([messages], return_tensors="pt", add_special_tokens=False)
         elif MODEL_TYPE == "stablelm":
             model_inputs = tok([messages], return_tensors="pt")
         elif MODEL_TYPE == "bloom":
@@ -330,12 +339,12 @@ def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_to
 # 引数を取得
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default=BASE_MODEL, help="モデル名またはディレクトリのパス")
-parser.add_argument("--model-type", type=str, choices=["rinna", "rinna4b", "opencalm", "llama", "stablelm", "bloom", "falcon", "mpt", "xgen"],  default=MODEL_TYPE, help="モデルタイプ名")
+parser.add_argument("--model-type", type=str, choices=["rinna", "rinna4b", "opencalm", "llama", "ja-stablelm", "stablelm", "bloom", "falcon", "mpt", "xgen"],  default=MODEL_TYPE, help="モデルタイプ名")
 parser.add_argument("--tokenizer", type=str, default=TOKENIZER_MODEL, help="トークナイザー名またはディレクトリのパス")
 parser.add_argument("--load-in-8bit", type=str, choices=["on", "off"], default=LOAD_IN_8BIT, help="8bit量子化するかどうか")
 parser.add_argument("--load-in-4bit", type=str, choices=["on", "off"], default=LOAD_IN_4BIT, help="4bit量子化するかどうか")
 parser.add_argument("--lora", type=str, default=LORA_WEIGHTS, help="LoRAディレクトリのパス")
-parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "beluga", "stablelm", "redpajama", "falcon", "xgen", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
+parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "beluga", "ja-stablelm", "stablelm", "redpajama", "falcon", "xgen", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
 parser.add_argument("--prompt-threshold", type=int, default=PROMPT_THRESHOLD, help="このトークン数を超えたら古い履歴を削除")
 parser.add_argument("--prompt-deleted", type=int, default=PROMPT_DELETED, help="古い履歴削除時にこのトークン以下にする")
 parser.add_argument("--repetition-penalty", type=float, default=REPETITION_PENALTY, help="繰り返しに対するペナルティ")
@@ -493,6 +502,26 @@ elif MODEL_TYPE == "llama":
     # トークナイザ―のロード
     print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
     tok = LlamaTokenizer.from_pretrained(TOKENIZER_MODEL)
+    print(f"Sucessfully loaded the tokenizer to the memory")
+# Japanese StableLMモデルの場合
+elif MODEL_TYPE == "ja-stablelm":
+    from transformers import AutoModelForCausalLM, LlamaTokenizer
+    # 改行を示す文字の設定
+    new_line = "\n"
+    # モデルのロード
+    print(f"Starting to load the model \"{BASE_MODEL}\" to memory")
+    m = AutoModelForCausalLM.from_pretrained(
+        BASE_MODEL,
+        torch_dtype=torch.float16,
+        load_in_8bit=LOAD_IN_8BIT,
+        load_in_4bit=LOAD_IN_4BIT, 
+        trust_remote_code=True,
+        device_map='auto'
+        )
+    print(f"Sucessfully loaded the model to the memory")
+    # トークナイザ―のロード
+    print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
+    tok = LlamaTokenizer.from_pretrained(TOKENIZER_MODEL, additional_special_tokens=['▁▁'])
     print(f"Sucessfully loaded the tokenizer to the memory")
 # StableLMモデルの場合
 elif MODEL_TYPE == "stablelm":
