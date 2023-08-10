@@ -187,6 +187,19 @@ You are Stable Beluga, an AI that follows instructions extremely well. Help as m
 ```
 
 
+### プロンプトタイプ名 `ja-stablelm`
+推奨モデル
+ - Japanese StableLM Instruct Alpha
+
+プロンプト形式
+```
+以下は、タスクを説明する指示と、文脈のある入力の組み合わせです。要求を適切に満たす応答を書きなさい
+
+### 指示: <ユーザの入力した文章>
+### 応答: <モデルの出力した文章>
+```
+
+
 ### プロンプトタイプ名 `stablelm`
 推奨モデル
  - StableLM Tuned Alpha
