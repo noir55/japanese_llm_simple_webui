@@ -23,7 +23,7 @@ VERSION = "1.0.0"
 # ページの最上部に表示させたいタイトルを設定
 TITLE_STRINGS = "Rinna 3.6B Instruction PPO Chat"
 
-# モデルタイプ("rinna","rinna4b","opencalm","llama","ja-stablelm","stablelm","bloom","falcon","mpt")
+# モデルタイプ("rinna","rinna4b","opencalm","llama","ja-stablelm","stablelm","bloom","falcon","mpt","line","weblab")
 MODEL_TYPE = "rinna"
 # ベースモデルを設定
 BASE_MODEL = "rinna/japanese-gpt-neox-3.6b-instruction-ppo"
@@ -37,7 +37,7 @@ LOAD_IN_4BIT = "off"
 # LoRAのディレクトリ(空文字列に設定すると読み込まない)
 LORA_WEIGHTS = ""
 
-# プロンプトタイプ("rinna","vicuna","alpaca","llama2","beluga","ja-stablelm","stablelm","redpajama","falcon","qa","none")
+# プロンプトタイプ("rinna","vicuna","alpaca","llama2","beluga","ja-stablelm","stablelm","redpajama","falcon","line","weblab","qa","none")
 PROMPT_TYPE = "rinna"
 # プロンプトが何トークンを超えたら履歴を削除するか
 PROMPT_THRESHOLD = 1024
@@ -138,7 +138,7 @@ def remove_last(history):
 def prompt(curr_system_message, history):
 
     # Rinna-3.6B形式のプロンプト生成
-    if PROMPT_TYPE == "rinna":
+    if PROMPT_TYPE == "rinna" or PROMPT_TYPE == "line":
         messages = curr_system_message + \
             new_line.join([new_line.join(["ユーザー: "+item[0], "システム: "+item[1]])
                     for item in history])
@@ -201,6 +201,13 @@ def prompt(curr_system_message, history):
                 new_line.join([new_line.join(["### Human: "+item[0], "### Asisstant: "+item[1]])
                     for item in history])
         messages = prefix + messages
+    # Weblab形式のプロンプト生成
+    elif PROMPT_TYPE == "weblab":
+        prefix = f"""以下は、タスクを説明する指示です。要求を適切に満たす応答を書きなさい。{new_line}{new_line}"""
+        messages = curr_system_message + \
+                f"{new_line}{new_line}".join([f"{new_line}{new_line}".join([f"### 指示:{new_line}"+item[0], f"### 応答:{new_line}"+item[1]])
+                    for item in history])
+        messages = prefix + messages
     # Q&A形式のプロンプト生成
     elif PROMPT_TYPE == "qa":
         messages = curr_system_message + \
@@ -242,7 +249,7 @@ def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_to
         if MODEL_TYPE == "rinna":
             messages = re.sub("\n", "<NL>", messages)
             model_inputs = tok([messages], return_tensors="pt", add_special_tokens=False, padding=True)
-        elif MODEL_TYPE == "rinna4b":
+        elif MODEL_TYPE == "rinna4b" or MODEL_TYPE == "line":
             model_inputs = tok([messages], return_tensors="pt", add_special_tokens=False)
         elif MODEL_TYPE == "opencalm":
             model_inputs = tok([messages], return_tensors="pt")
@@ -261,6 +268,9 @@ def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_to
             model_inputs = tok([messages], return_tensors="pt")
         elif MODEL_TYPE == "xgen":
             model_inputs = tok([messages], return_tensors="pt")
+        elif MODEL_TYPE == "weblab":
+            model_inputs = tok([messages], add_special_tokens=False, return_tensors="pt")
+            model_inputs.pop('token_type_ids')
         # もしプロンプトのトークン数が多すぎる場合は削除フラグを設定
         if del_flag == 0 and len(model_inputs['input_ids'][0]) > PROMPT_THRESHOLD:
             del_flag = 1
@@ -339,12 +349,12 @@ def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_to
 # 引数を取得
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default=BASE_MODEL, help="モデル名またはディレクトリのパス")
-parser.add_argument("--model-type", type=str, choices=["rinna", "rinna4b", "opencalm", "llama", "ja-stablelm", "stablelm", "bloom", "falcon", "mpt", "xgen"],  default=MODEL_TYPE, help="モデルタイプ名")
+parser.add_argument("--model-type", type=str, choices=["rinna", "rinna4b", "opencalm", "llama", "ja-stablelm", "stablelm", "bloom", "falcon", "mpt", "xgen", "line", "weblab"],  default=MODEL_TYPE, help="モデルタイプ名")
 parser.add_argument("--tokenizer", type=str, default=TOKENIZER_MODEL, help="トークナイザー名またはディレクトリのパス")
 parser.add_argument("--load-in-8bit", type=str, choices=["on", "off"], default=LOAD_IN_8BIT, help="8bit量子化するかどうか")
 parser.add_argument("--load-in-4bit", type=str, choices=["on", "off"], default=LOAD_IN_4BIT, help="4bit量子化するかどうか")
 parser.add_argument("--lora", type=str, default=LORA_WEIGHTS, help="LoRAディレクトリのパス")
-parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "beluga", "ja-stablelm", "stablelm", "redpajama", "falcon", "xgen", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
+parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "beluga", "ja-stablelm", "stablelm", "redpajama", "falcon", "xgen", "weblab", "line", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
 parser.add_argument("--prompt-threshold", type=int, default=PROMPT_THRESHOLD, help="このトークン数を超えたら古い履歴を削除")
 parser.add_argument("--prompt-deleted", type=int, default=PROMPT_DELETED, help="古い履歴削除時にこのトークン以下にする")
 parser.add_argument("--repetition-penalty", type=float, default=REPETITION_PENALTY, help="繰り返しに対するペナルティ")
@@ -443,8 +453,8 @@ if MODEL_TYPE == "rinna":
     print(f"Sucessfully loaded the tokenizer to the memory")
     # padding設定
     m.config.pad_token_id = tok.eos_token_id
-# Rinna-4Bモデルの場合
-elif MODEL_TYPE == "rinna4b":
+# Rinna-4B、LINE-Japanese-Large-LMモデルの場合
+elif MODEL_TYPE == "rinna4b" or MODEL_TYPE == "line":
     from transformers import AutoModelForCausalLM, AutoTokenizer
     # 改行を示す文字の設定
     new_line = "\n"
@@ -619,13 +629,30 @@ elif MODEL_TYPE == "xgen":
     print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
     tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL, trust_remote_code=True)
     print(f"Sucessfully loaded the tokenizer to the memory")
+# Weblabモデルの場合
+elif MODEL_TYPE == "weblab":
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    # 改行を示す文字の設定
+    new_line = "\n"
+    # モデルのロード
+    print(f"Starting to load the model \"{BASE_MODEL}\" to memory")
+    m = AutoModelForCausalLM.from_pretrained(
+        BASE_MODEL,
+        torch_dtype=torch.float16,
+        load_in_8bit=LOAD_IN_8BIT,
+        load_in_4bit=LOAD_IN_4BIT, 
+        device_map='auto'
+        )
+    print(f"Sucessfully loaded the model to the memory")
+    # トークナイザ―のロード
+    print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
+    tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL)
+    print(f"Sucessfully loaded the tokenizer to the memory")
 # MODEL_TYPE設定が正しくなければ終了する
 else:
     print(f"Invalid MODEL_TYPE \"{MODEL_TYPE}\"")
     exit()
 
-# ジェネレータの作成 (不要だと思われるためコメントアウト)
-#generator = pipeline('text-generation', model=m, tokenizer=tok)
 
 # LoRAのロード
 if LORA_WEIGHTS != "":
