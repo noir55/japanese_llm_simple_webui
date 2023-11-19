@@ -1,5 +1,6 @@
 # Japanese LLM Simple WebUI
 Rinna-3.6B、OpenCALM等の日本語対応LLM用の簡易Webチャットインタフェースです。
+GGUF形式(llama.cpp)モデル用のものは、[GGUF Simple WebUI](https://github.com/noir55/gguf_simple_webui) になります。
 
 # 機能
 - ブラウザで開いたWebインタフェース上で、LLMとのチャットができます
