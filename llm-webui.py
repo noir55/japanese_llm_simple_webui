@@ -23,7 +23,7 @@ VERSION = "1.0.0"
 # ページの最上部に表示させたいタイトルを設定
 TITLE_STRINGS = "Rinna 3.6B Instruction PPO Chat"
 
-# モデルタイプ("rinna","rinna4b","opencalm","llama","ja-stablelm","stablelm","bloom","falcon","mpt","line","weblab")
+# モデルタイプ("rinna","rinna4b","opencalm","llama","ja-stablelm","stablelm","bloom","falcon","mpt","line","weblab","general")
 MODEL_TYPE = "rinna"
 # ベースモデルを設定
 BASE_MODEL = "rinna/japanese-gpt-neox-3.6b-instruction-ppo"
@@ -266,11 +266,11 @@ def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_to
             model_inputs.pop('token_type_ids')
         elif MODEL_TYPE == "mpt":
             model_inputs = tok([messages], return_tensors="pt")
-        elif MODEL_TYPE == "xgen":
-            model_inputs = tok([messages], return_tensors="pt")
         elif MODEL_TYPE == "weblab":
             model_inputs = tok([messages], add_special_tokens=False, return_tensors="pt")
             model_inputs.pop('token_type_ids')
+        elif MODEL_TYPE == "general" or MODEL_TYPE == "xgen":
+            model_inputs = tok([messages], return_tensors="pt")
         # もしプロンプトのトークン数が多すぎる場合は削除フラグを設定
         if del_flag == 0 and len(model_inputs['input_ids'][0]) > PROMPT_THRESHOLD:
             del_flag = 1
@@ -349,7 +349,7 @@ def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_to
 # 引数を取得
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default=BASE_MODEL, help="モデル名またはディレクトリのパス")
-parser.add_argument("--model-type", type=str, choices=["rinna", "rinna4b", "opencalm", "llama", "ja-stablelm", "stablelm", "bloom", "falcon", "mpt", "xgen", "line", "weblab"],  default=MODEL_TYPE, help="モデルタイプ名")
+parser.add_argument("--model-type", type=str, choices=["rinna", "rinna4b", "opencalm", "llama", "ja-stablelm", "stablelm", "bloom", "falcon", "mpt", "xgen", "line", "weblab", "general"],  default=MODEL_TYPE, help="モデルタイプ名")
 parser.add_argument("--tokenizer", type=str, default=TOKENIZER_MODEL, help="トークナイザー名またはディレクトリのパス")
 parser.add_argument("--load-in-8bit", type=str, choices=["on", "off"], default=LOAD_IN_8BIT, help="8bit量子化するかどうか")
 parser.add_argument("--load-in-4bit", type=str, choices=["on", "off"], default=LOAD_IN_4BIT, help="4bit量子化するかどうか")
@@ -611,24 +611,6 @@ elif MODEL_TYPE == "mpt":
     print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
     tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL)
     print(f"Sucessfully loaded the tokenizer to the memory")
-# Xgenモデルの場合
-elif MODEL_TYPE == "xgen":
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    # 改行を示す文字の設定
-    new_line = "\n"
-    # モデルのロード
-    print(f"Starting to load the model \"{BASE_MODEL}\" to memory")
-    m = AutoModelForCausalLM.from_pretrained(
-        BASE_MODEL,
-        torch_dtype=torch.float16,
-        load_in_8bit=LOAD_IN_8BIT,
-        device_map='auto'
-        )
-    print(f"Sucessfully loaded the model to the memory")
-    # トークナイザ―のロード
-    print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
-    tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL, trust_remote_code=True)
-    print(f"Sucessfully loaded the tokenizer to the memory")
 # Weblabモデルの場合
 elif MODEL_TYPE == "weblab":
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -647,6 +629,24 @@ elif MODEL_TYPE == "weblab":
     # トークナイザ―のロード
     print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
     tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL)
+    print(f"Sucessfully loaded the tokenizer to the memory")
+# 一般的なモデル、またはXgenモデルの場合
+elif MODEL_TYPE == "general" or MODEL_TYPE == "xgen":
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    # 改行を示す文字の設定
+    new_line = "\n"
+    # モデルのロード
+    print(f"Starting to load the model \"{BASE_MODEL}\" to memory")
+    m = AutoModelForCausalLM.from_pretrained(
+        BASE_MODEL,
+        torch_dtype=torch.float16,
+        load_in_8bit=LOAD_IN_8BIT,
+        device_map='auto'
+        )
+    print(f"Sucessfully loaded the model to the memory")
+    # トークナイザ―のロード
+    print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
+    tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL, trust_remote_code=True)
     print(f"Sucessfully loaded the tokenizer to the memory")
 # MODEL_TYPE設定が正しくなければ終了する
 else:
