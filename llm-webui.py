@@ -37,7 +37,7 @@ LOAD_IN_4BIT = "off"
 # LoRAのディレクトリ(空文字列に設定すると読み込まない)
 LORA_WEIGHTS = ""
 
-# プロンプトタイプ("rinna","vicuna","alpaca","llama2","beluga","ja-stablelm","stablelm","redpajama","falcon","line","weblab","qa","none")
+# プロンプトタイプ("rinna","vicuna","alpaca","llama2","beluga","ja-stablelm","stablelm","redpajama","falcon","line","weblab","chatml","qa","none")
 PROMPT_TYPE = "rinna"
 # プロンプトが何トークンを超えたら履歴を削除するか
 PROMPT_THRESHOLD = 1024
@@ -208,6 +208,13 @@ def prompt(curr_system_message, history):
                 f"{new_line}{new_line}".join([f"{new_line}{new_line}".join([f"### 指示:{new_line}"+item[0], f"### 応答:{new_line}"+item[1]])
                     for item in history])
         messages = prefix + messages
+    # ChatML形式のプロンプト生成
+    elif PROMPT_TYPE == "chatml":
+        prefix = f"""<|im_start|>system{new_line}以下の質問に日本語で答えてください<|im_end|>{new_line}<|im_start|>"""
+        messages = curr_system_message + \
+            f"<|im_end|>{new_line}<|im_start|>".join(["".join([f"User{new_line}"+item[0], f"<|im_end|>{new_line}<|im_start|>Assistant{new_line}"+item[1]])
+                    for item in history])
+        messages = prefix + messages
     # Q&A形式のプロンプト生成
     elif PROMPT_TYPE == "qa":
         messages = curr_system_message + \
@@ -354,7 +361,7 @@ parser.add_argument("--tokenizer", type=str, default=TOKENIZER_MODEL, help="ト�
 parser.add_argument("--load-in-8bit", type=str, choices=["on", "off"], default=LOAD_IN_8BIT, help="8bit量子化するかどうか")
 parser.add_argument("--load-in-4bit", type=str, choices=["on", "off"], default=LOAD_IN_4BIT, help="4bit量子化するかどうか")
 parser.add_argument("--lora", type=str, default=LORA_WEIGHTS, help="LoRAディレクトリのパス")
-parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "beluga", "ja-stablelm", "stablelm", "redpajama", "falcon", "xgen", "weblab", "line", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
+parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "beluga", "ja-stablelm", "stablelm", "redpajama", "falcon", "xgen", "weblab", "chatml", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
 parser.add_argument("--prompt-threshold", type=int, default=PROMPT_THRESHOLD, help="このトークン数を超えたら古い履歴を削除")
 parser.add_argument("--prompt-deleted", type=int, default=PROMPT_DELETED, help="古い履歴削除時にこのトークン以下にする")
 parser.add_argument("--repetition-penalty", type=float, default=REPETITION_PENALTY, help="繰り返しに対するペナルティ")
