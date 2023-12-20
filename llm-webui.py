@@ -217,7 +217,7 @@ def prompt(curr_system_message, history):
         messages = prefix + messages
     # Swallow形式のプロンプト生成
     elif PROMPT_TYPE == "swallow":
-        prefix = f"""以下に、あるタスクを説明する指示があります。{new_line}リクエストを適切に完了するための回答を記述してください。{new_line}{new_line}"""
+        prefix = f"""以下に、あるタスクを説明する指示があります。リクエストを適切に完了するための回答を記述してください。{new_line}{new_line}"""
         messages = curr_system_message + \
             f"{new_line}{new_line}".join([new_line.join([f"### 指示:{new_line}"+item[0], f"{new_line}### 応答:{new_line}"+item[1]])
                     for item in history])
