@@ -37,7 +37,7 @@ LOAD_IN_4BIT = "off"
 # LoRAのディレクトリ(空文字列に設定すると読み込まない)
 LORA_WEIGHTS = ""
 
-# プロンプトタイプ("rinna","vicuna","alpaca","llama2","beluga","ja-stablelm","stablelm","redpajama","falcon","line","weblab","mixtral","swallow","chatml","qa","none")
+# プロンプトタイプ("rinna","vicuna","alpaca","llama2","beluga","ja-stablelm","stablelm","redpajama","falcon","line","weblab","mixtral","swallow","nekomata","chatml","qa","none")
 PROMPT_TYPE = "rinna"
 # プロンプトが何トークンを超えたら履歴を削除するか
 PROMPT_THRESHOLD = 1024
@@ -170,8 +170,8 @@ def prompt(curr_system_message, history):
             f"{new_line}{new_line}".join([new_line.join([f"### User:{new_line}"+item[0], f"{new_line}### Assistant:{new_line}"+item[1]])
                     for item in history])
         messages = prefix + messages
-    # Japanese StableLM形式のプロンプト生成
-    elif PROMPT_TYPE == "ja-stablelm":
+    # Japanese StableLM、Nekomata形式のプロンプト生成
+    elif PROMPT_TYPE == "ja-stablelm" or PROMPT_TYPE == "nekomata":
         prefix = f"""以下は、タスクを説明する指示と、文脈のある入力の組み合わせです。要求を適切に満たす応答を書きなさい。{new_line}{new_line}"""
         messages = curr_system_message + \
             f"{new_line}".join([new_line.join([f"### 指示: "+item[0], f"### 応答: "+item[1]])
@@ -290,6 +290,8 @@ def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_to
         elif MODEL_TYPE == "weblab":
             model_inputs = tok([messages], add_special_tokens=False, return_tensors="pt")
             model_inputs.pop('token_type_ids')
+        elif MODEL_TYPE == "nekomata":
+            model_inputs = tok([messages], return_tensors="pt", add_special_tokens=False)
         elif MODEL_TYPE == "general" or MODEL_TYPE == "xgen":
             model_inputs = tok([messages], return_tensors="pt")
         # もしプロンプトのトークン数が多すぎる場合は削除フラグを設定
@@ -370,12 +372,12 @@ def chat(curr_system_message, history, p_do_sample, p_temperature, p_top_k, p_to
 # 引数を取得
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, default=BASE_MODEL, help="モデル名またはディレクトリのパス")
-parser.add_argument("--model-type", type=str, choices=["rinna", "rinna4b", "opencalm", "llama", "ja-stablelm", "stablelm", "bloom", "falcon", "mpt", "xgen", "line", "weblab", "general"],  default=MODEL_TYPE, help="モデルタイプ名")
+parser.add_argument("--model-type", type=str, choices=["rinna", "rinna4b", "opencalm", "llama", "ja-stablelm", "stablelm", "bloom", "falcon", "mpt", "xgen", "line", "weblab", "nekomata", "general"],  default=MODEL_TYPE, help="モデルタイプ名")
 parser.add_argument("--tokenizer", type=str, default=TOKENIZER_MODEL, help="トークナイザー名またはディレクトリのパス")
 parser.add_argument("--load-in-8bit", type=str, choices=["on", "off"], default=LOAD_IN_8BIT, help="8bit量子化するかどうか")
 parser.add_argument("--load-in-4bit", type=str, choices=["on", "off"], default=LOAD_IN_4BIT, help="4bit量子化するかどうか")
 parser.add_argument("--lora", type=str, default=LORA_WEIGHTS, help="LoRAディレクトリのパス")
-parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "beluga", "ja-stablelm", "stablelm", "redpajama", "falcon", "xgen", "weblab", "mixtral", "swallow", "chatml", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
+parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "beluga", "ja-stablelm", "stablelm", "redpajama", "falcon", "xgen", "weblab", "mixtral", "swallow", "nekomata", "chatml", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
 parser.add_argument("--prompt-threshold", type=int, default=PROMPT_THRESHOLD, help="このトークン数を超えたら古い履歴を削除")
 parser.add_argument("--prompt-deleted", type=int, default=PROMPT_DELETED, help="古い履歴削除時にこのトークン以下にする")
 parser.add_argument("--repetition-penalty", type=float, default=REPETITION_PENALTY, help="繰り返しに対するペナルティ")
@@ -651,8 +653,28 @@ elif MODEL_TYPE == "weblab":
     print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
     tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL)
     print(f"Sucessfully loaded the tokenizer to the memory")
-# 一般的なモデル、またはXgenモデルの場合
-elif MODEL_TYPE == "general" or MODEL_TYPE == "xgen":
+# Nekomataモデルの場合
+elif MODEL_TYPE == "nekomata":
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    # 改行を示す文字の設定
+    new_line = "\n"
+    # モデルのロード
+    print(f"Starting to load the model \"{BASE_MODEL}\" to memory")
+    m = AutoModelForCausalLM.from_pretrained(
+        BASE_MODEL,
+        torch_dtype=torch.float16,
+        load_in_8bit=LOAD_IN_8BIT,
+        load_in_4bit=LOAD_IN_4BIT,
+        trust_remote_code=True,
+        device_map='auto'
+        )
+    print(f"Sucessfully loaded the model to the memory")
+    # トークナイザ―のロード
+    print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
+    tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL, trust_remote_code=True)
+    print(f"Sucessfully loaded the tokenizer to the memory")
+# Xgenモデルの場合
+elif MODEL_TYPE == "xgen":
     from transformers import AutoModelForCausalLM, AutoTokenizer
     # 改行を示す文字の設定
     new_line = "\n"
@@ -668,6 +690,24 @@ elif MODEL_TYPE == "general" or MODEL_TYPE == "xgen":
     # トークナイザ―のロード
     print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
     tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL, trust_remote_code=True)
+    print(f"Sucessfully loaded the tokenizer to the memory")
+# 一般的なモデルの場合
+elif MODEL_TYPE == "general":
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    # 改行を示す文字の設定
+    new_line = "\n"
+    # モデルのロード
+    print(f"Starting to load the model \"{BASE_MODEL}\" to memory")
+    m = AutoModelForCausalLM.from_pretrained(
+        BASE_MODEL,
+        torch_dtype=torch.float16,
+        load_in_8bit=LOAD_IN_8BIT,
+        device_map='auto'
+        )
+    print(f"Sucessfully loaded the model to the memory")
+    # トークナイザ―のロード
+    print(f"Starting to load the tokenizer \"{TOKENIZER_MODEL}\" to memory")
+    tok = AutoTokenizer.from_pretrained(TOKENIZER_MODEL)
     print(f"Sucessfully loaded the tokenizer to the memory")
 # MODEL_TYPE設定が正しくなければ終了する
 else:
