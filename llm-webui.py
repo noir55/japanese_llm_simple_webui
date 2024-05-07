@@ -37,7 +37,7 @@ LOAD_IN_4BIT = "off"
 # LoRAのディレクトリ(空文字列に設定すると読み込まない)
 LORA_WEIGHTS = ""
 
-# プロンプトタイプ("rinna","vicuna","alpaca","llama2","beluga","ja-stablelm","stablelm","redpajama","falcon","line","weblab","mixtral","swallow","nekomata","elyzallama2","karakuri","gemma","chatml","command-r","qa","none")
+# プロンプトタイプ("rinna","vicuna","alpaca","llama2","beluga","ja-stablelm","stablelm","redpajama","falcon","line","weblab","mixtral","swallow","nekomata","elyzallama2","karakuri","gemma","chatml","command-r","llama3","qa","none")
 PROMPT_TYPE = "rinna"
 # プロンプトが何トークンを超えたら履歴を削除するか
 PROMPT_THRESHOLD = 1024
@@ -257,6 +257,13 @@ def prompt(curr_system_message, history):
             f"<|END_OF_TURN_TOKEN|><|START_OF_TURN_TOKEN|>".join(["<|END_OF_TURN_TOKEN|><|START_OF_TURN_TOKEN|>".join([f"<|USER_TOKEN|>"+item[0], f"<|CHATBOT_TOKEN|>"+item[1]])
                     for item in history])
         messages = prefix + messages
+    # Llama3形式のプロンプト生成
+    elif PROMPT_TYPE == "llama3":
+        prefix = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>{new_line}ユーザの質問やリクエストに、適切で役立つ情報を回答してください。言語の指定がなければ回答には必ず日本語を使用してください。<|eot_id|>"""
+        messages = curr_system_message + \
+            "".join(["<|eot_id|>".join([f"<|start_header_id|>user<|end_header_id|>"+item[0], f"<|start_header_id|>assistant<|end_header_id|>"+item[1]])
+                    for item in history])
+        messages = prefix + messages
     # Q&A形式のプロンプト生成
     elif PROMPT_TYPE == "qa":
         messages = curr_system_message + \
@@ -405,7 +412,7 @@ parser.add_argument("--tokenizer", type=str, default=TOKENIZER_MODEL, help="ト�
 parser.add_argument("--load-in-8bit", type=str, choices=["on", "off"], default=LOAD_IN_8BIT, help="8bit量子化するかどうか")
 parser.add_argument("--load-in-4bit", type=str, choices=["on", "off"], default=LOAD_IN_4BIT, help="4bit量子化するかどうか")
 parser.add_argument("--lora", type=str, default=LORA_WEIGHTS, help="LoRAディレクトリのパス")
-parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "beluga", "ja-stablelm", "stablelm", "redpajama", "falcon", "xgen", "weblab", "mixtral", "swallow", "nekomata", "elyzallama2", "karakuri", "gemma", "chatml", "command-r", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
+parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "beluga", "ja-stablelm", "stablelm", "redpajama", "falcon", "xgen", "weblab", "mixtral", "swallow", "nekomata", "elyzallama2", "karakuri", "gemma", "chatml", "command-r", "llama3", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
 parser.add_argument("--prompt-threshold", type=int, default=PROMPT_THRESHOLD, help="このトークン数を超えたら古い履歴を削除")
 parser.add_argument("--prompt-deleted", type=int, default=PROMPT_DELETED, help="古い履歴削除時にこのトークン以下にする")
 parser.add_argument("--repetition-penalty", type=float, default=REPETITION_PENALTY, help="繰り返しに対するペナルティ")
