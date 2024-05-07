@@ -37,7 +37,7 @@ LOAD_IN_4BIT = "off"
 # LoRAのディレクトリ(空文字列に設定すると読み込まない)
 LORA_WEIGHTS = ""
 
-# プロンプトタイプ("rinna","vicuna","alpaca","llama2","beluga","ja-stablelm","stablelm","redpajama","falcon","line","weblab","mixtral","swallow","nekomata","elyzallama2","gemma","chatml","command-r","qa","none")
+# プロンプトタイプ("rinna","vicuna","alpaca","llama2","beluga","ja-stablelm","stablelm","redpajama","falcon","line","weblab","mixtral","swallow","nekomata","elyzallama2","karakuri","gemma","chatml","command-r","qa","none")
 PROMPT_TYPE = "rinna"
 # プロンプトが何トークンを超えたら履歴を削除するか
 PROMPT_THRESHOLD = 1024
@@ -231,6 +231,13 @@ def prompt(curr_system_message, history):
             f"</s><s>".join(["".join([f"[INST]"+item[0], f"[/INST]"+item[1]])
                     for item in history]).replace(r'[INST]','',1)
         messages = prefix + messages
+    # KARAKURI LM形式のプロンプト生成
+    elif PROMPT_TYPE == "karakuri":
+        prefix = f"""<s>[INST] <<SYS>>{new_line}以下の質問やリクエストに対して適切な回答をしてください。{new_line}<</SYS>>{new_line}{new_line}"""
+        messages = curr_system_message + \
+            f"</s><s>".join(["".join([f"[INST]"+item[0], f"[ATTR] helpfulness: 4 correctness: 4 coherence: 4 complexity: 4 verbosity: 4 quality: 4 toxicity: 0 humor: 0 creativity: 0 [/ATTR] [/INST]"+item[1]])
+                    for item in history]).replace(r'[INST]','',1)
+        messages = prefix + messages
     # Gemma形式のプロンプト生成
     elif PROMPT_TYPE == "gemma":
         messages = curr_system_message + \
@@ -398,7 +405,7 @@ parser.add_argument("--tokenizer", type=str, default=TOKENIZER_MODEL, help="ト�
 parser.add_argument("--load-in-8bit", type=str, choices=["on", "off"], default=LOAD_IN_8BIT, help="8bit量子化するかどうか")
 parser.add_argument("--load-in-4bit", type=str, choices=["on", "off"], default=LOAD_IN_4BIT, help="4bit量子化するかどうか")
 parser.add_argument("--lora", type=str, default=LORA_WEIGHTS, help="LoRAディレクトリのパス")
-parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "beluga", "ja-stablelm", "stablelm", "redpajama", "falcon", "xgen", "weblab", "mixtral", "swallow", "nekomata", "elyzallama2", "gemma", "chatml", "command-r", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
+parser.add_argument("--prompt-type", type=str, choices=["rinna", "vicuna", "alpaca", "llama2", "beluga", "ja-stablelm", "stablelm", "redpajama", "falcon", "xgen", "weblab", "mixtral", "swallow", "nekomata", "elyzallama2", "karakuri", "gemma", "chatml", "command-r", "qa", "none"], default=PROMPT_TYPE, help="プロンプトタイプ名")
 parser.add_argument("--prompt-threshold", type=int, default=PROMPT_THRESHOLD, help="このトークン数を超えたら古い履歴を削除")
 parser.add_argument("--prompt-deleted", type=int, default=PROMPT_DELETED, help="古い履歴削除時にこのトークン以下にする")
 parser.add_argument("--repetition-penalty", type=float, default=REPETITION_PENALTY, help="繰り返しに対するペナルティ")
